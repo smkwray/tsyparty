@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from tsyparty.config import data_root
 from tsyparty.registry import iter_sources
 from tsyparty.infer.counterparty import ras_balance, sign_baseline_matrix, sparse_threshold_rebalance
 from tsyparty.behavior.similarity import cosine_distance_matrix
@@ -163,165 +162,66 @@ def cmd_parse_fwtw(args: argparse.Namespace) -> None:
 
 def cmd_parse_debt(args: argparse.Namespace) -> None:
     """Parse debt-to-penny API JSON into quarterly debt totals."""
-    import json
+    from tsyparty.ingest.fiscaldata import parse_debt_to_penny
 
-    json_path = Path(args.json_path)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    with open(json_path) as f:
-        data = json.load(f)
-
-    records = data.get("data", [])
-    rows = []
-    for rec in records:
-        date_str = rec.get("record_date", "")
-        held_public = rec.get("debt_held_public_amt", "null")
-        if held_public == "null" or not held_public:
-            continue
-        try:
-            ts = pd.Timestamp(date_str)
-            val = float(held_public)
-        except (ValueError, TypeError):
-            continue
-        rows.append({"date": ts, "public_debt": val / 1_000_000})  # Convert to millions
-
-    df = pd.DataFrame(rows)
-    if df.empty:
+    quarterly = parse_debt_to_penny(args.json_path)
+    if quarterly.empty:
         print("No valid debt-to-penny records found.")
         return
 
-    # Resample to quarter-end (take the last observation in each quarter)
-    df = df.sort_values("date")
-    df = df.set_index("date")
-    quarterly = df.resample("QE").last().dropna().reset_index()
     quarterly.to_csv(out / "debt_totals.csv", index=False)
     print(f"Debt totals: {len(quarterly)} quarters, {quarterly['date'].min().date()} to {quarterly['date'].max().date()}")
 
 
 def cmd_parse_tic(args: argparse.Namespace) -> None:
     """Parse TIC SLT historical global CSV into quarterly foreign Treasury holdings."""
-    csv_path = Path(args.csv_path)
+    from tsyparty.ingest.tic import parse_slt_global
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    df_raw = pd.read_csv(csv_path, dtype=str, skiprows=14, header=None, on_bad_lines="skip", low_memory=False)
-    if df_raw.shape[1] < 5:
-        print("Unexpected TIC SLT format")
-        return
-
-    df_raw.columns = ["country", "country_code", "date", "total_longterm", "treasury", "agency", "corp_bonds", "corp_stocks"][:df_raw.shape[1]]
-
-    # Use the "Grand Total" row (code 99996) to avoid double-counting aggregates
-    totals = df_raw[df_raw["country_code"].str.strip() == "99996"].copy()
-    if totals.empty:
-        # Fall back to "All Countries" (code 69995)
-        totals = df_raw[df_raw["country_code"].str.strip() == "69995"].copy()
-    if totals.empty:
-        print("Could not find aggregate total row in TIC SLT data")
-        return
-
-    totals["treasury_val"] = pd.to_numeric(
-        totals["treasury"].str.replace(",", "").str.strip(), errors="coerce"
-    )
-    totals["date_ts"] = pd.to_datetime(totals["date"].str.strip(), format="%Y-%m", errors="coerce")
-    totals = totals.dropna(subset=["date_ts", "treasury_val"])
-
-    monthly = totals[["date_ts", "treasury_val"]].rename(columns={"date_ts": "date_ts"}).copy()
-
-    # Resample to quarter-end
-    monthly = monthly.sort_values("date_ts").set_index("date_ts")
-    quarterly = monthly.resample("QE").last().dropna().reset_index()
-    quarterly.columns = ["date", "tic_foreign_treasury"]
-
+    quarterly = parse_slt_global(args.csv_path)
     quarterly.to_csv(out / "tic_foreign_holdings.csv", index=False)
     print(f"TIC foreign Treasury holdings: {len(quarterly)} quarters, {quarterly['date'].min().date()} to {quarterly['date'].max().date()}")
 
 
 def cmd_parse_efa(args: argparse.Namespace) -> None:
     """Parse EFA data sources into validation targets."""
-    import re
+    from tsyparty.ingest.efa import parse_efa_mmf_treasury, parse_efa_bank_treasury, parse_efa_international
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     efa_dir = Path(args.efa_dir)
 
-    # 1. MMF Treasury holdings
     mmf_path = efa_dir / "money-market-funds-investment-holdings-historical.csv"
     if mmf_path.exists():
-        df = pd.read_csv(mmf_path, dtype=str)
-        if "North America; USA; Treasury" in df.columns:
-            records = []
-            for _, row in df.iterrows():
-                date_raw = str(row["Date"]).strip()
-                match = re.match(r"(\d{4})\s+(\w+)", date_raw)
-                if match:
-                    ts = pd.Timestamp(f"{match.group(2)} {match.group(1)}")
-                else:
-                    try:
-                        ts = pd.Timestamp(date_raw)
-                    except Exception:
-                        continue
-                val = str(row["North America; USA; Treasury"]).replace(",", "").strip()
-                try:
-                    records.append({"date": ts, "mmf_treasury_holdings": float(val)})
-                except (ValueError, TypeError):
-                    continue
-            mmf_df = pd.DataFrame(records).sort_values("date").set_index("date")
-            mmf_q = mmf_df.resample("QE").last().dropna().reset_index()
+        mmf_q = parse_efa_mmf_treasury(mmf_path)
+        if not mmf_q.empty:
             mmf_q.to_csv(out / "efa_mmf_treasury.csv", index=False)
             print(f"EFA MMF Treasury: {len(mmf_q)} quarters, {mmf_q['date'].min().date()} to {mmf_q['date'].max().date()}")
 
-    # 2. Bank Treasury holdings
     bank_path = efa_dir / "consolidated-bank-balance-sheet-data-historical.csv"
     if bank_path.exists():
-        df = pd.read_csv(bank_path, dtype=str)
-        if "Assets: Treasury securities" in df.columns:
-            records = []
-            for _, row in df.iterrows():
-                date_raw = str(row["Date"]).strip()
-                match = re.match(r"(\d{4}):Q(\d)", date_raw)
-                if match:
-                    year, q = int(match.group(1)), int(match.group(2))
-                    ts = pd.Timestamp(year=year, month=q * 3, day=1) + pd.offsets.MonthEnd(0)
-                else:
-                    continue
-                val = str(row["Assets: Treasury securities"]).replace(",", "").strip()
-                try:
-                    # EFA banks data is in billions
-                    records.append({"date": ts, "bank_treasury_holdings": float(val) * 1000})  # → millions
-                except (ValueError, TypeError):
-                    continue
-            bank_df = pd.DataFrame(records).sort_values("date")
+        bank_df = parse_efa_bank_treasury(bank_path)
+        if not bank_df.empty:
             bank_df.to_csv(out / "efa_bank_treasury.csv", index=False)
             print(f"EFA banks Treasury: {len(bank_df)} quarters, {bank_df['date'].min().date()} to {bank_df['date'].max().date()}")
 
-    # 3. International: total foreign holdings
     intl_path = efa_dir / "international-portfolio-investment-table1a-historical.csv"
     if intl_path.exists():
-        df = pd.read_csv(intl_path, dtype=str)
-        if "Worldwide" in df.columns:
-            records = []
-            for _, row in df.iterrows():
-                date_raw = str(row["Date"]).strip()
-                try:
-                    ts = pd.Timestamp(date_raw)
-                except Exception:
-                    continue
-                val = str(row["Worldwide"]).replace(",", "").strip()
-                try:
-                    # EFA international is in billions → millions
-                    records.append({"date": ts, "foreign_total_lt_securities": float(val) * 1000})
-                except (ValueError, TypeError):
-                    continue
-            intl_df = pd.DataFrame(records).sort_values("date").set_index("date")
-            intl_q = intl_df.resample("QE").last().dropna().reset_index()
+        intl_q = parse_efa_international(intl_path)
+        if not intl_q.empty:
             intl_q.to_csv(out / "efa_foreign_total.csv", index=False)
             print(f"EFA foreign total LT: {len(intl_q)} quarters, {intl_q['date'].min().date()} to {intl_q['date'].max().date()}")
 
 
 def cmd_validate(args: argparse.Namespace) -> None:
     """Cross-validate harmonized panel against EFA and TIC sources."""
+    from tsyparty.validate.crosscheck import run_crosschecks
+
     derived = Path(args.derived)
     interim = Path(args.interim)
     out = Path(args.out)
@@ -329,47 +229,25 @@ def cmd_validate(args: argparse.Namespace) -> None:
 
     panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
 
-    results = []
+    efa_bank = _read_optional_csv(interim / "efa_bank_treasury.csv")
+    efa_mmf = _read_optional_csv(interim / "efa_mmf_treasury.csv")
+    tic_foreign = _read_optional_csv(interim / "tic_foreign_holdings.csv")
 
-    # Cross-validate bank holdings
-    efa_bank_path = interim / "efa_bank_treasury.csv"
-    if efa_bank_path.exists():
-        efa_banks = pd.read_csv(efa_bank_path, parse_dates=["date"])
-        panel_banks = panel[panel["sector"] == "banks"].groupby("date", as_index=False)["holdings"].sum()
-        merged = panel_banks.merge(efa_banks, on="date", how="inner")
-        if not merged.empty:
-            merged["bank_diff_pct"] = (merged["holdings"] - merged["bank_treasury_holdings"]) / merged["bank_treasury_holdings"] * 100
-            print(f"Bank validation: {len(merged)} quarters, mean diff {merged['bank_diff_pct'].mean():.1f}%")
-            results.append(("banks", merged["bank_diff_pct"].mean(), merged["bank_diff_pct"].abs().max()))
+    summary = run_crosschecks(panel, efa_bank=efa_bank, efa_mmf=efa_mmf, tic_foreign=tic_foreign)
 
-    # Cross-validate MMF holdings
-    efa_mmf_path = interim / "efa_mmf_treasury.csv"
-    if efa_mmf_path.exists():
-        efa_mmf = pd.read_csv(efa_mmf_path, parse_dates=["date"])
-        panel_mmf = panel[panel["sector"] == "money_market_funds"].groupby("date", as_index=False)["holdings"].sum()
-        merged = panel_mmf.merge(efa_mmf, on="date", how="inner")
-        if not merged.empty:
-            merged["mmf_diff_pct"] = (merged["holdings"] - merged["mmf_treasury_holdings"]) / merged["mmf_treasury_holdings"] * 100
-            print(f"MMF validation: {len(merged)} quarters, mean diff {merged['mmf_diff_pct'].mean():.1f}%")
-            results.append(("money_market_funds", merged["mmf_diff_pct"].mean(), merged["mmf_diff_pct"].abs().max()))
-
-    # Cross-validate foreign holdings via TIC
-    tic_path = interim / "tic_foreign_holdings.csv"
-    if tic_path.exists():
-        tic = pd.read_csv(tic_path, parse_dates=["date"])
-        panel_foreign = panel[panel["sector"] == "foreigners_official"].groupby("date", as_index=False)["holdings"].sum()
-        merged = panel_foreign.merge(tic, on="date", how="inner")
-        if not merged.empty:
-            merged["foreign_diff_pct"] = (merged["holdings"] - merged["tic_foreign_treasury"]) / merged["tic_foreign_treasury"] * 100
-            print(f"Foreign validation: {len(merged)} quarters, mean diff {merged['foreign_diff_pct'].mean():.1f}%")
-            results.append(("foreigners_official", merged["foreign_diff_pct"].mean(), merged["foreign_diff_pct"].abs().max()))
-
-    if results:
-        summary = pd.DataFrame(results, columns=["sector", "mean_diff_pct", "max_abs_diff_pct"])
+    if not summary.empty:
+        for _, row in summary.iterrows():
+            print(f"{row['sector']} validation: {row['quarters']:.0f} quarters, mean diff {row['mean_diff_pct']:.1f}%")
         summary.to_csv(out / "validation_summary.csv", index=False)
         print(f"\nWrote validation summary to {out / 'validation_summary.csv'}")
     else:
         print("No validation sources found. Run parse-efa and parse-tic first.")
+
+
+def _read_optional_csv(path: Path) -> pd.DataFrame | None:
+    if path.exists():
+        return pd.read_csv(path, parse_dates=["date"])
+    return None
 
 
 def cmd_parse_auction(args: argparse.Namespace) -> None:
@@ -614,91 +492,28 @@ def cmd_primary_market(args: argparse.Namespace) -> None:
 
 def cmd_enrich_foreign(args: argparse.Namespace) -> None:
     """Enrich harmonized panel by splitting foreigners into official vs private."""
+    from tsyparty.ingest.tic import parse_slt_table1_countries
+    from tsyparty.reconcile.enrich import estimate_official_share, enrich_foreign_split
+
     derived = Path(args.derived)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
     panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
 
-    # TIC SLT table1 has official vs total breakdown per country
-    # We use a heuristic: known official holders account for ~60-70% of foreign Treasury holdings
-    # This is an approximate enrichment, not an exact decomposition
     tic_path = Path(args.tic_dir) / "slt_table1.txt"
-    if not tic_path.exists():
-        print(f"TIC SLT table1 not found at {tic_path}. Skipping foreign enrichment.")
-        return
+    official_share = None
+    if tic_path.exists():
+        tic_countries = parse_slt_table1_countries(tic_path)
+        if not tic_countries.empty:
+            official_share = estimate_official_share(tic_countries)
+    else:
+        print(f"TIC SLT table1 not found at {tic_path}. Using default official share.")
 
-    # Parse TIC SLT table1 for official/total ratio
-    import csv
-    import io
-
-    text = tic_path.read_text(encoding="utf-8", errors="replace")
-    lines = text.split("\n")
-
-    # Find data lines (after the header section)
-    data_lines = []
-    for line in lines:
-        parts = line.split("\t")
-        if len(parts) >= 9 and parts[2].strip()[:4].isdigit():
-            data_lines.append(parts)
-
-    if not data_lines:
-        print("Could not parse TIC SLT table1 data.")
-        return
-
-    # Known official holders (central banks / sovereign wealth funds)
-    # These are the countries most likely to hold via official accounts
-    official_countries = {
-        "Japan", "China, Mainland", "Saudi Arabia", "India", "South Korea",
-        "Taiwan", "Brazil", "Singapore", "Hong Kong", "Thailand",
-        "Israel", "Kuwait", "United Arab Emirates", "Qatar", "Norway",
-        "Russia", "Mexico", "Turkey", "Indonesia", "Philippines",
-    }
-
-    records = []
-    for parts in data_lines:
-        country = parts[0].strip()
-        date_str = parts[2].strip()
-        tsy_holdings = parts[6].strip().replace(",", "")
-        try:
-            ts = pd.Timestamp(date_str)
-            val = float(tsy_holdings)
-        except (ValueError, TypeError):
-            continue
-        is_official = country in official_countries
-        records.append({"date": ts, "country": country, "treasury": val, "is_official": is_official})
-
-    tic_df = pd.DataFrame(records)
-    if tic_df.empty:
-        print("No TIC data parsed.")
-        return
-
-    # Compute official share per month
-    monthly = tic_df.groupby(["date", "is_official"], as_index=False)["treasury"].sum()
-    totals = monthly.groupby("date")["treasury"].transform("sum")
-    monthly["share"] = monthly["treasury"] / totals.replace(0, float("nan"))
-
-    official_share = monthly[monthly["is_official"]].set_index("date")["share"]
-    official_share = official_share.resample("QE").mean().dropna()
-
-    # Apply to harmonized panel
-    foreign_rows = panel[panel["sector"] == "foreigners_official"].copy()
-    other_rows = panel[panel["sector"] != "foreigners_official"].copy()
-
-    enriched = []
-    for _, row in foreign_rows.iterrows():
-        q = row["date"]
-        share = official_share.get(q, 0.65)  # Default 65% official if no TIC data for this quarter
-        official_val = row["holdings"] * share
-        private_val = row["holdings"] * (1 - share)
-        enriched.append({**row.to_dict(), "sector": "foreigners_official", "holdings": official_val})
-        enriched.append({**row.to_dict(), "sector": "foreigners_private", "holdings": private_val})
-
-    enriched_panel = pd.concat([other_rows, pd.DataFrame(enriched)], ignore_index=True)
-    enriched_panel = enriched_panel.sort_values(["date", "sector"]).reset_index(drop=True)
-
+    enriched_panel = enrich_foreign_split(panel, official_share)
     enriched_panel.to_csv(out / "harmonized_panel_enriched.csv", index=False)
-    mean_share = official_share.mean()
+
+    mean_share = float(official_share.mean()) if official_share is not None and not official_share.empty else 0.65
     print(f"Foreign enrichment: mean official share = {mean_share:.1%}")
     print(f"Panel expanded from {len(panel)} to {len(enriched_panel)} rows (added foreigners_private)")
     print(f"Wrote to {out / 'harmonized_panel_enriched.csv'}")
