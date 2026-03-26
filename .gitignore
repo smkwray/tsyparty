@@ -13,34 +13,10 @@ __pycache__/
 build/
 dist/
 
-# Agent memory and internal planning
+# Internal planning
 do/
-AGENTS.md
-*.plan.md
-plan.md
-plans/
-*handoff*.md
-*backlog*.md
-PLAN.md
-ROADMAP.md
-DESIGN.md
-CODEX_HANDOFF.md
-docs/*plan*.md
-docs/*backlog*.md
-docs/*handoff*.md
-docs/project_plan.md
-docs/codex_backlog.md
-docs/validation_plan.md
-docs/presentation_plan.md
-docs/thesis_alignment.md
-docs/implementation_notes.md
 
-outputs/figures/*
-outputs/tables/*
-outputs/json/*
-!outputs/figures/.gitkeep
-!outputs/tables/.gitkeep
-!outputs/json/.gitkeep
+# Data artifacts (reproducible via reproduce.sh)
 data/raw_public/*
 data/interim/*
 data/derived/*
@@ -51,3 +27,16 @@ data/licensed_optional/*
 !data/derived/.gitkeep
 !data/cache/.gitkeep
 !data/licensed_optional/.gitkeep
+
+# Output artifacts (reproducible via reproduce.sh)
+outputs/figures/*
+outputs/tables/*
+outputs/json/*
+outputs/baseline/*
+outputs/inference/*
+outputs/similarity/*
+outputs/validation/*
+outputs/primary_market/*
+!outputs/figures/.gitkeep
+!outputs/tables/.gitkeep
+!outputs/json/.gitkeep

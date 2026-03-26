@@ -23,7 +23,7 @@ def ffiec_manual_instructions(dest_dir: str | Path) -> Path:
             [
                 "FFIEC bulk data downloader not yet automated.",
                 f"Landing page: {spec.landing_url}",
-                "Next codex task:",
+                "To automate:",
                 "1. Inspect the page form fields.",
                 "2. Submit a valid call date selection.",
                 "3. Save the returned ZIP or CSV artifact.",
