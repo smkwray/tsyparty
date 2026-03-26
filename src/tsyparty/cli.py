@@ -103,6 +103,21 @@ def cmd_download(args: argparse.Namespace) -> None:
 
             print(f"Downloading investor-class XLS to {dest / 'auction'}")
             download_investor_class_recent(dest / "auction")
+        elif source == "tic_slt":
+            from tsyparty.ingest.treasury import download_direct_treasury_source
+
+            print(f"Downloading TIC SLT to {dest / 'tic'}")
+            download_direct_treasury_source("tic_slt_table1_txt", dest / "tic")
+            download_direct_treasury_source("tic_slt_historical_global", dest / "tic")
+        elif source == "debt_to_penny":
+            from tsyparty.ingest.treasury import download_fiscaldata_api
+
+            print(f"Downloading debt-to-penny to {dest / 'fiscaldata'}")
+            download_fiscaldata_api(
+                "debt_to_penny_api", dest / "fiscaldata",
+                params={"fields": "record_date,debt_held_public_amt,intragov_hold_amt,tot_pub_debt_out_amt",
+                        "sort": "-record_date", "page[size]": "10000"},
+            )
         else:
             print(f"Unknown source: {source}")
 
@@ -138,6 +153,77 @@ def cmd_parse_fwtw(args: argparse.Namespace) -> None:
     out.mkdir(parents=True, exist_ok=True)
     result.holdings.to_csv(out / "fwtw_holdings.csv", index=False)
     print(f"Wrote parsed FWTW to {out}")
+
+
+def cmd_parse_debt(args: argparse.Namespace) -> None:
+    """Parse debt-to-penny API JSON into quarterly debt totals."""
+    import json
+
+    json_path = Path(args.json_path)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    with open(json_path) as f:
+        data = json.load(f)
+
+    records = data.get("data", [])
+    rows = []
+    for rec in records:
+        date_str = rec.get("record_date", "")
+        held_public = rec.get("debt_held_public_amt", "null")
+        if held_public == "null" or not held_public:
+            continue
+        try:
+            ts = pd.Timestamp(date_str)
+            val = float(held_public)
+        except (ValueError, TypeError):
+            continue
+        rows.append({"date": ts, "public_debt": val / 1_000_000})  # Convert to millions
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        print("No valid debt-to-penny records found.")
+        return
+
+    # Resample to quarter-end (take the last observation in each quarter)
+    df = df.sort_values("date")
+    df = df.set_index("date")
+    quarterly = df.resample("QE").last().dropna().reset_index()
+    quarterly.to_csv(out / "debt_totals.csv", index=False)
+    print(f"Debt totals: {len(quarterly)} quarters, {quarterly['date'].min().date()} to {quarterly['date'].max().date()}")
+
+
+def cmd_parse_tic(args: argparse.Namespace) -> None:
+    """Parse TIC SLT historical global CSV into quarterly foreign Treasury holdings."""
+    csv_path = Path(args.csv_path)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    df_raw = pd.read_csv(csv_path, dtype=str, skiprows=14, header=None, on_bad_lines="skip", low_memory=False)
+    # Columns: Country Name, Country Code, End of Month, Total Long-Term, Treasury, Agency, Corp Bonds, Corp Stocks
+    if df_raw.shape[1] < 5:
+        print("Unexpected TIC SLT format")
+        return
+
+    df_raw.columns = ["country", "country_code", "date", "total_longterm", "treasury", "agency", "corp_bonds", "corp_stocks"][:df_raw.shape[1]]
+
+    # Parse treasury column
+    df_raw["treasury_val"] = pd.to_numeric(
+        df_raw["treasury"].str.replace(",", "").str.strip(), errors="coerce"
+    )
+    df_raw["date_ts"] = pd.to_datetime(df_raw["date"].str.strip(), format="%Y-%m", errors="coerce")
+    df_raw = df_raw.dropna(subset=["date_ts", "treasury_val"])
+
+    # Aggregate across all countries per month
+    monthly = df_raw.groupby("date_ts", as_index=False)["treasury_val"].sum()
+
+    # Resample to quarter-end
+    monthly = monthly.sort_values("date_ts").set_index("date_ts")
+    quarterly = monthly.resample("QE").last().dropna().reset_index()
+    quarterly.columns = ["date", "tic_foreign_treasury"]
+
+    quarterly.to_csv(out / "tic_foreign_holdings.csv", index=False)
+    print(f"TIC foreign Treasury holdings: {len(quarterly)} quarters, {quarterly['date'].min().date()} to {quarterly['date'].max().date()}")
 
 
 def cmd_parse_auction(args: argparse.Namespace) -> None:
@@ -352,6 +438,89 @@ def cmd_infer(args: argparse.Namespace) -> None:
     print(f"Wrote inference outputs to {out}")
 
 
+def cmd_similarity(args: argparse.Namespace) -> None:
+    """Compute sector behavior similarity from harmonized panel."""
+    import numpy as np
+    from tsyparty.baseline.flows import holdings_changes_from_levels
+    from tsyparty.behavior.similarity import cosine_distance_matrix, closest_sectors
+    from tsyparty.viz.charts import save_line_chart
+
+    derived = Path(args.derived)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
+    private = panel[~panel["sector"].isin(["_total", "_discrepancy"])].copy()
+
+    # Compute quarterly holding changes
+    changes = holdings_changes_from_levels(private, group_cols=["sector", "instrument"])
+    changes = changes.dropna(subset=["delta_holdings"])
+
+    # Pivot to wide: date x sector
+    wide = changes.pivot_table(index="date", columns="sector", values="delta_holdings", aggfunc="sum").fillna(0)
+
+    # Feature 1: Correlation of holding changes (post-2000 for stability)
+    wide_recent = wide.loc[wide.index >= "2000-01-01"]
+    if wide_recent.empty or wide_recent.shape[1] < 3:
+        print("Not enough data for similarity analysis.")
+        return
+
+    # Feature construction: mean change, volatility, share of total, trend
+    features = pd.DataFrame(index=wide_recent.columns)
+    features["mean_delta"] = wide_recent.mean()
+    features["volatility"] = wide_recent.std()
+    features["share_of_total_change"] = wide_recent.abs().mean() / wide_recent.abs().mean().sum()
+
+    # Bill-share approximation: ratio of level to total (from latest available)
+    levels = private.pivot_table(index="date", columns="sector", values="holdings", aggfunc="sum")
+    if not levels.empty:
+        latest_levels = levels.iloc[-1]
+        features["share_of_total_holdings"] = latest_levels / latest_levels.sum()
+
+    features = features.dropna()
+    if features.empty or len(features) < 3:
+        print("Not enough features for similarity analysis.")
+        return
+
+    # Compute cosine distance matrix
+    dist = cosine_distance_matrix(features)
+    dist.to_csv(out / "sector_distance_matrix.csv")
+    print(f"Distance matrix: {dist.shape[0]}x{dist.shape[1]} sectors")
+
+    # Closest sectors for key targets
+    for target in ["banks", "foreigners_official", "money_market_funds"]:
+        if target in dist.index:
+            closest = closest_sectors(dist, target, top_n=5)
+            print(f"\n  Closest to {target}:")
+            for sector, d in closest.items():
+                print(f"    {sector:30s} {d:.4f}")
+
+    # Heatmap
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(dist.values, cmap="YlOrRd", aspect="auto")
+    ax.set_xticks(range(len(dist.columns)))
+    ax.set_yticks(range(len(dist.index)))
+    ax.set_xticklabels(dist.columns, rotation=45, ha="right", fontsize=8)
+    ax.set_yticklabels(dist.index, fontsize=8)
+    ax.set_title("Sector Behavior Distance (cosine)")
+    fig.colorbar(im, ax=ax, label="Distance")
+    plt.tight_layout()
+    plt.savefig(out / "sector_distance_heatmap.png", dpi=200)
+    plt.close()
+    print(f"  Chart: {out / 'sector_distance_heatmap.png'}")
+
+    # Rolling correlation of key pairs
+    if "banks" in wide_recent.columns and "foreigners_official" in wide_recent.columns:
+        rolling_corr = wide_recent["banks"].rolling(20).corr(wide_recent["foreigners_official"])
+        corr_df = pd.DataFrame({"banks_vs_foreigners": rolling_corr}).dropna()
+        if not corr_df.empty:
+            save_line_chart(corr_df, "Rolling Correlation: Banks vs Foreigners (20Q)", out / "rolling_corr_banks_foreigners.png", ylabel="Correlation")
+            print(f"  Chart: {out / 'rolling_corr_banks_foreigners.png'}")
+
+    print(f"Wrote similarity outputs to {out}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tsyparty")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -388,6 +557,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_parse_auction.add_argument("--out", default="data/interim", help="Output directory")
     p_parse_auction.set_defaults(func=cmd_parse_auction)
 
+    p_parse_debt = subparsers.add_parser("parse-debt", help="Parse debt-to-penny API JSON")
+    p_parse_debt.add_argument("json_path", help="Path to debt_to_penny_api.json")
+    p_parse_debt.add_argument("--out", default="data/interim", help="Output directory")
+    p_parse_debt.set_defaults(func=cmd_parse_debt)
+
+    p_parse_tic = subparsers.add_parser("parse-tic", help="Parse TIC SLT global CSV")
+    p_parse_tic.add_argument("csv_path", help="Path to slt1d_globl.csv")
+    p_parse_tic.add_argument("--out", default="data/interim", help="Output directory")
+    p_parse_tic.set_defaults(func=cmd_parse_tic)
+
     p_harmonize = subparsers.add_parser("harmonize", help="Build harmonized panel and reconcile")
     p_harmonize.add_argument("--interim", default="data/interim", help="Interim data directory")
     p_harmonize.add_argument("--out", default="data/derived", help="Output directory")
@@ -404,6 +583,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_infer.add_argument("--derived", default="data/derived", help="Derived data directory")
     p_infer.add_argument("--out", default="outputs/inference", help="Output directory")
     p_infer.set_defaults(func=cmd_infer)
+
+    p_similarity = subparsers.add_parser("similarity", help="Compute sector behavior similarity")
+    p_similarity.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_similarity.add_argument("--out", default="outputs/similarity", help="Output directory")
+    p_similarity.set_defaults(func=cmd_similarity)
 
     return parser
 
