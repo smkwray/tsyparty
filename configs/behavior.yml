@@ -1,0 +1,19 @@
+version: 1
+rolling_similarity:
+  window_quarters: 20
+  minimum_observations: 20
+  x_cols:
+    - net_public_supply
+    - delta_soma
+
+distance_metric:
+  default: cosine
+  alternatives:
+    - euclidean
+
+target_profiles:
+  bank_like:
+    - banks
+  foreign_like:
+    - foreigners_official
+    - foreigners_private

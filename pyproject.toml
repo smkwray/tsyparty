@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tsyparty"
+version = "0.1.0"
+description = "Public-data Treasury counterparty inference and sector behavior mapping"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+  {name = "Research Scaffold"}
+]
+dependencies = [
+  "beautifulsoup4>=4.12",
+  "duckdb>=1.1",
+  "lxml>=5.2",
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pyarrow>=16.1",
+  "PyYAML>=6.0",
+  "requests>=2.32",
+  "scikit-learn>=1.5",
+  "scipy>=1.13",
+  "statsmodels>=0.14",
+  "openpyxl>=3.1",
+  "xlrd>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+tsyparty = "tsyparty.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,9 @@
+name,layer,frequency,source,description,status
+treasury_holdings_by_sector,derived,quarterly,Z.1,Harmonized Treasury holdings by sector,planned
+treasury_transactions_by_sector,derived,quarterly,Z.1,Harmonized Treasury transactions by sector,planned
+fwtw_issuer_holder_levels,interim,quarterly,FWTW,Issuer-holder Treasury levels,planned
+auction_investor_class_shares,derived,monthly,Treasury,Investor-class allotment shares,planned
+foreign_treasury_holdings_country,derived,monthly,EFA/TIC,Foreign holdings by country,planned
+bank_treasury_validation,derived,quarterly,FFIEC/EFA,Bank Treasury holdings validation panel,planned
+counterparty_matrix,derived,quarterly,tsyparty,Inferred net counterparty matrix,planned
+behavior_similarity_scores,derived,quarterly,tsyparty,Sector proximity metrics,planned

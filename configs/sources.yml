@@ -1,0 +1,149 @@
+version: 1
+notes:
+  - Canonical estimation frequency is quarterly.
+  - Use official landing pages for discovery when direct artifacts are unstable.
+  - Preserve discovered URLs in raw manifests.
+
+sources:
+  z1_release_page:
+    category: federal_reserve
+    frequency: quarterly
+    landing_url: https://www.federalreserve.gov/releases/z1/
+    artifact_discovery: follow current release CSV link
+    sample_artifact_url: https://www.federalreserve.gov/releases/z1/20260319/z1_csv_files.zip
+    purpose: sector Treasury holdings and transactions backbone
+
+  fwtw_csv:
+    category: federal_reserve
+    frequency: quarterly
+    landing_url: https://www.federalreserve.gov/releases/efa/fwtw.htm
+    direct_url: https://www.federalreserve.gov/releases/efa/fwtw_data.csv
+    dictionary_url: https://www.federalreserve.gov/releases/efa/fwtw_data_dictionary.txt
+    template_url: https://www.federalreserve.gov/releases/efa/fwtw_templates.xlsx
+    purpose: issuer-holder prior and validation target
+    caveat: levels only
+
+  efa_mmf_holdings:
+    category: federal_reserve
+    frequency: monthly
+    landing_url: https://www.federalreserve.gov/releases/efa/efa-project-money-market-funds-investment-holdings.htm
+    direct_url: https://www.federalreserve.gov/releases/efa/money-market-funds-investment-holdings-historical.csv
+    purpose: money market fund Treasury/bill allocations
+
+  efa_hedge_funds:
+    category: federal_reserve
+    frequency: quarterly
+    landing_url: https://www.federalreserve.gov/releases/efa/efa-project-all-hedge-funds.htm
+    direct_url: https://www.federalreserve.gov/releases/efa/all_hedge_funds_balance_sheet.csv
+    purpose: hedge fund balance-sheet context
+
+  efa_banks:
+    category: federal_reserve
+    frequency: quarterly
+    landing_url: https://www.federalreserve.gov/releases/efa/efa-enhanced-financial-accounts.htm
+    direct_url: https://www.federalreserve.gov/releases/efa/consolidated-bank-balance-sheet-data-historical.csv
+    purpose: depository institution consolidated balance sheet
+
+  efa_international_country:
+    category: federal_reserve
+    frequency: monthly
+    landing_url: https://www.federalreserve.gov/releases/efa/enhanced-financial-accounts.htm
+    direct_url: https://www.federalreserve.gov/releases/efa/international-portfolio-investment-table1a-historical.csv
+    purpose: foreign Treasury holdings by country
+
+  tic_main:
+    category: treasury
+    frequency: monthly
+    landing_url: https://home.treasury.gov/data/treasury-international-capital-tic-system-home-page
+    purpose: landing page for TIC releases and notes
+
+  tic_slt_table1_txt:
+    category: treasury
+    frequency: monthly
+    landing_url: https://home.treasury.gov/data/treasury-international-capital-tic-system-home-page/tic-forms-instructions
+    direct_url: https://ticdata.treasury.gov/resource-center/data-chart-center/tic/Documents/slt_table1.txt
+    purpose: expanded SLT foreign holdings / transactions / valuation data
+
+  tic_slt_historical_global:
+    category: treasury
+    frequency: monthly
+    landing_url: https://home.treasury.gov/data/treasury-international-capital-tic-system-home-page
+    direct_url: https://ticdata.treasury.gov/resource-center/data-chart-center/tic/Documents/slt1d_globl.csv
+    purpose: historical global SLT holdings CSV
+
+  investor_class_page:
+    category: treasury
+    frequency: monthly
+    landing_url: https://home.treasury.gov/data/treasury-securities-auctions-data/investor-class-auction-allotments
+    artifact_discovery: scrape recent bill and coupon xls links
+    sample_coupon_url: https://home.treasury.gov/system/files/276/March-23-2026-IC-Coupons.xls
+    sample_bill_url: https://home.treasury.gov/system/files/276/March-9-2026-IC-Bills.xls
+    historical_coupon_url: https://home.treasury.gov/system/files/276/Website-PDO-4-A-Coupons-Jan-2000-Sep%202009.xls
+    historical_bill_url: https://home.treasury.gov/system/files/276/Website-IC-allotments-Bills-Aug-2001-Sep-2009.xls
+    purpose: primary-market buyer composition
+
+  debt_to_penny_api:
+    category: fiscaldata
+    frequency: daily
+    landing_url: https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/debt-to-the-penny
+    api_url: https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/debt_to_penny
+    purpose: debt held by the public and intragovernmental totals
+
+  dts_public_debt_transactions:
+    category: fiscaldata
+    frequency: daily
+    landing_url: https://fiscaldata.treasury.gov/datasets/daily-treasury-statement/
+    api_url: https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/dts/public_debt_transactions
+    purpose: daily Treasury debt operations context
+
+  dts_operating_cash:
+    category: fiscaldata
+    frequency: daily
+    landing_url: https://fiscaldata.treasury.gov/datasets/daily-treasury-statement/
+    api_url: https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/dts/deposits_withdrawals_operating_cash
+    purpose: TGA and cash flow context
+
+  soma_holdings_page:
+    category: new_york_fed
+    frequency: weekly
+    landing_url: https://www.newyorkfed.org/markets/soma-holdings
+    purpose: SOMA Treasury holdings history and API links
+
+  h41_current_pdf:
+    category: federal_reserve
+    frequency: weekly
+    landing_url: https://www.federalreserve.gov/releases/h41/
+    direct_url: https://www.federalreserve.gov/releases/h41/current/h41.pdf
+    purpose: Fed balance-sheet context
+
+  h8_release_page:
+    category: federal_reserve
+    frequency: weekly
+    landing_url: https://www.federalreserve.gov/releases/h8/
+    purpose: banking system balance-sheet context
+
+  primary_dealer_statistics:
+    category: new_york_fed
+    frequency: weekly
+    landing_url: https://www.newyorkfed.org/markets/primarydealer_statistics
+    purpose: aggregate dealer positions, transactions, financing, fails
+
+  ffiec_bulk_data:
+    category: ffiec
+    frequency: quarterly
+    landing_url: https://cdr.ffiec.gov/public/pws/downloadbulkdata.aspx
+    purpose: call report bulk files
+
+  sec_nmfp:
+    category: sec
+    frequency: monthly
+    landing_url: https://www.sec.gov/data-research/sec-markets-data/dera-form-n-mfp-data-sets
+    artifact_discovery: scrape monthly zip links
+    purpose: monthly money market fund holdings
+
+  sec_nport:
+    category: sec
+    frequency: quarterly_release_monthly_holdings
+    landing_url: https://www.sec.gov/data-research/sec-markets-data/form-n-port-data-sets
+    artifact_discovery: scrape quarterly zip links
+    purpose: registered fund monthly holdings

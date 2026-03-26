@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: tsyparty
+message: If you use this repo scaffold, please cite the project and document the final source vintages you relied on.
+type: software
+authors:
+  - family-names: Research
+    given-names: Scaffold
+version: 0.1.0
+repository-code: https://example.com/tsyparty
+abstract: >-
+  Public-data Treasury counterparty inference and sector behavior mapping scaffold.

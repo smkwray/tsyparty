@@ -1,0 +1,9 @@
+,value
+dense_converged,True
+dense_iterations,11
+dense_row_error,6.84730849798143e-09
+dense_col_error,3.552713678800501e-15
+sparse_converged,True
+sparse_iterations,140
+sparse_row_error,8.247409866157795e-09
+sparse_col_error,7.105427357601002e-15

@@ -1,0 +1,8 @@
+quarter,instrument_bucket,sector,net_flow
+2024Q4,all_treasuries,banks,50
+2024Q4,all_treasuries,foreigners_private,30
+2024Q4,all_treasuries,money_market_funds,20
+2024Q4,all_treasuries,dealers,-40
+2024Q4,all_treasuries,insurers,-25
+2024Q4,all_treasuries,households_residual,-20
+2024Q4,all_treasuries,mutual_funds_etfs,-15

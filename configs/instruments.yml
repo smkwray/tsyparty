@@ -1,0 +1,29 @@
+version: 1
+canonical_instruments:
+  all_treasuries:
+    description: marketable Treasury securities aggregate
+  bills:
+    description: Treasury bills
+    maturity_class: short
+    money_like: true
+  nominal_coupons:
+    description: nominal coupon-bearing notes and bonds
+    maturity_class: medium_long
+    money_like: false
+  frns:
+    description: floating rate notes
+    maturity_class: short_medium
+    money_like: mixed
+  tips:
+    description: Treasury Inflation-Protected Securities
+    maturity_class: medium_long
+    money_like: false
+
+recommended_reporting_buckets:
+  - bills
+  - nominal_coupons
+  - frns
+  - tips
+
+fallback_reporting:
+  if_detail_missing: all_treasuries

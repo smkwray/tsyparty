@@ -1,0 +1,34 @@
+version: 1
+canonical_frequency: quarterly
+
+primary_secondary_decomposition:
+  separate_primary_market: true
+  separate_maturities_and_redemptions: true
+  include_fed_node: true
+  include_residual_node: true
+
+sign_baseline:
+  allocation_rule: proportional_to_available_net_sales
+  treat_zero_sales_as_ineligible: true
+
+entropy_ras:
+  max_iter: 10000
+  tol: 1.0e-8
+  epsilon: 1.0e-12
+  prior_default: uniform_on_allowed_support
+  use_structural_zeros: true
+
+sparse_sensitivity:
+  enabled: true
+  threshold_quantile: 0.65
+  rebalance_after_threshold: true
+
+validation:
+  require_market_clearing: true
+  report_row_col_gaps: true
+  compare_to_fwtw_levels: true
+  compare_to_auction_allotments: true
+  compare_foreign_side_to_tic: true
+
+claims:
+  label_outputs_as_likely_net_counterparties: true

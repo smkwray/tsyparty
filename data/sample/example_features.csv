@@ -1,0 +1,5 @@
+sector,beta_net_public_supply,beta_delta_soma,bill_share_preference
+banks,0.9,-0.4,0.2
+foreigners_private,0.8,-0.2,0.5
+money_market_funds,0.3,0.1,0.8
+insurers,-0.1,0.2,0.6

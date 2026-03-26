@@ -1,0 +1,58 @@
+version: 1
+canonical_sectors:
+  treasury:
+    role: issuer
+    notes: primary-market source node
+  fed:
+    role: public_sector_holder
+    notes: SOMA / central bank
+  banks:
+    role: private_holder
+    includes:
+      - commercial banks
+      - savings institutions
+  dealers:
+    role: intermediary
+    notes: immediate trading counterparties often sit here
+  money_market_funds:
+    role: private_holder
+  mutual_funds_etfs:
+    role: private_holder
+  hedge_funds:
+    role: private_holder
+  insurers:
+    role: private_holder
+  pensions:
+    role: private_holder
+  households_residual:
+    role: private_holder
+    caveat: residual-heavy bucket in many FA mappings
+  nonfinancial_corporates:
+    role: private_holder
+  state_local_governments:
+    role: private_holder
+  foreigners_official:
+    role: external_holder
+  foreigners_private:
+    role: external_holder
+  other_financial:
+    role: private_holder
+    notes: residual financial institutions not otherwise separated
+
+analysis_groups:
+  bank_like_target:
+    - banks
+  foreign_like_target:
+    - foreigners_official
+    - foreigners_private
+  wide_private_holders:
+    - banks
+    - money_market_funds
+    - mutual_funds_etfs
+    - hedge_funds
+    - insurers
+    - pensions
+    - households_residual
+    - nonfinancial_corporates
+    - state_local_governments
+    - other_financial

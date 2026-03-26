@@ -1,0 +1,16 @@
+version: 1
+regimes:
+  qt:
+    description: Fed balance-sheet runoff episodes
+  tga_rebuild:
+    description: Treasury cash rebuilding episodes
+  debt_ceiling_resolution:
+    description: post-ceiling issuance bursts
+  bill_heavy_issuance:
+    description: periods when bill share of financing is high
+  coupon_heavy_issuance:
+    description: periods when coupon share of financing is high
+
+event_principles:
+  - Weekly and daily event data are for narrative and overlays, not the canonical counterparty estimator.
+  - Respect native frequency instead of forcing false precision.
