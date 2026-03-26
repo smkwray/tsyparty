@@ -2,154 +2,135 @@
 
 Public-data Treasury counterparty inference and sector-behavior mapping.
 
-`tsyparty` is a seeded research repo for building a defensible, presentation-ready project that asks:
+`tsyparty` builds a reproducible, public-data-only map of who holds U.S. Treasury securities, how holdings flow between sectors, and which sectors behave most similarly. It answers four questions:
 
-- when banks add Treasury holdings, who are the most likely **ultimate net sellers**,
-- when foreigners add Treasury holdings, who are the most likely **ultimate net sellers**,
-- who buys new Treasury supply in the **primary market**,
-- which sectors behave most like banks or foreigners across issuance and balance-sheet regimes.
+1. When banks add Treasury holdings, who are the most likely **net sellers**?
+2. When foreigners add Treasury holdings, who are the most likely **net sellers**?
+3. Who buys new Treasury supply in the **primary market**?
+4. Which sectors behave most like banks or foreigners?
 
-The repo is designed to stay **public-data-first**, **quarterly-canonical**, and **institutionally transparent**. It treats exact gross bilateral trades and immediate dealer counterparties as outside the claim set of the public backbone, while still producing useful estimates of likely net counterparties and marginal absorbers.
+## Installation
 
-## Why this repo exists
+```bash
+pip install -e ".[dev]"
+```
 
-The broader thesis draft already contains a Treasury-deposit-component accounting framework, a stock-flow-consistent simulation, and a large mixed-frequency econometrics program. This repo isolates the Treasury-holder / counterparty module so it can be built, defended, and presented as a standalone research product.
-
-## Frozen estimands
-
-1. **Ultimate net seller to banks** by quarter and instrument bucket.
-2. **Ultimate net seller to foreigners** by quarter and instrument bucket.
-3. **Primary-market buyer composition** by investor class and instrument bucket.
-4. **Behavioral proximity**: which sectors absorb supply like banks or foreigners.
-
-## Core method stack
-
-1. **Accounting and reconciliation layer**
-   - debt held by the public
-   - SOMA/Fed holdings
-   - sector Treasury holdings
-   - issuance, maturities, and runoff
-
-2. **Transparent baseline**
-   - sector holding changes
-   - issuance mix
-   - auction allotments
-   - dealer bridge context
-   - foreign official/private changes
-
-3. **Two-layer counterparty estimator**
-   - primary-market matrix: Treasury -> sectors
-   - secondary-market matrix: sector -> sector
-
-4. **Main inference approach**
-   - sign-based baseline attribution
-   - constrained entropy / RAS / IPFP reconstruction
-   - sparse sensitivity variant
-   - explicit residual bucket
-
-5. **Behavior module**
-   - supply-absorption betas
-   - rolling similarity scores
-   - bank-closeness and foreign-closeness rankings
-   - clustering / distance views
-
-## Public-data backbone
-
-- Federal Reserve **Z.1 Financial Accounts**
-- Federal Reserve **FWTW** issuer-holder data
-- Federal Reserve **Enhanced Financial Accounts (EFA)**
-- Treasury **TIC / expanded SLT**
-- Treasury **Investor Class Auction Allotments**
-- FiscalData **Debt to the Penny** and DTS endpoints
-- SOMA holdings history
-- H.4.1, H.8, Primary Dealer Statistics
-- FFIEC Call Reports
-- SEC N-MFP and N-PORT
+Requires Python 3.11+.
 
 ## Quick start
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-
-tsyparty show-plan
-tsyparty example --out outputs/sample
-tsyparty registry --public-only
-```
-
-To start ingestion work:
+Run the full pipeline:
 
 ```bash
-python scripts/download_all_public.py --dest data/raw_public
+./reproduce.sh
 ```
+
+Or step by step:
+
+```bash
+# Download public data
+tsyparty download z1 fwtw investor_class debt_to_penny tic_slt efa
+
+# Parse raw data
+tsyparty parse-z1 data/raw_public/z1/z1_csv_files.zip --out data/interim
+tsyparty parse-fwtw data/raw_public/fwtw/fwtw_data.csv --out data/interim
+tsyparty parse-auction data/raw_public/auction/*.xls --out data/interim
+tsyparty parse-debt data/raw_public/fiscaldata/debt_to_penny_api.json --out data/interim
+tsyparty parse-tic data/raw_public/tic/slt1d_globl.csv --out data/interim
+tsyparty parse-efa --efa-dir data/raw_public/efa --out data/interim
+
+# Harmonize and reconcile
+tsyparty harmonize --interim data/interim --out data/derived
+
+# Validate against independent sources
+tsyparty validate --derived data/derived --interim data/interim --out outputs/validation
+
+# Descriptive analysis
+tsyparty baseline --derived data/derived --out outputs/baseline
+tsyparty primary-market --interim data/interim --out outputs/primary_market
+
+# Counterparty inference
+tsyparty infer --derived data/derived --out outputs/inference
+
+# Behavior similarity
+tsyparty similarity --derived data/derived --out outputs/similarity
+```
+
+## Available commands
+
+| Command | Description |
+|---------|-------------|
+| `download` | Download public source data (Z.1, FWTW, TIC, EFA, Fiscal Data) |
+| `parse-z1` | Parse Z.1 Financial Accounts CSV zip (table L.210) |
+| `parse-fwtw` | Parse FWTW issuer-holder CSV |
+| `parse-auction` | Parse Treasury investor-class auction XLS files |
+| `parse-debt` | Parse Fiscal Data API debt-to-penny JSON |
+| `parse-tic` | Parse TIC SLT historical global CSV |
+| `parse-efa` | Parse EFA data (MMF, banks, international) |
+| `harmonize` | Build harmonized quarterly panel and run reconciliation |
+| `validate` | Cross-validate panel against EFA/TIC sources |
+| `enrich-foreign` | Split foreign holdings into official vs private |
+| `baseline` | Compute holding changes, margins, and composition charts |
+| `primary-market` | Build primary-market allocation from auction data |
+| `infer` | Run RAS/sparse counterparty inference |
+| `similarity` | Compute sector behavior distance matrix and charts |
+| `show-plan` | Print the build sequence |
+| `registry` | List configured public data sources |
+| `example` | Generate example outputs from toy data |
+
+## Public data sources
+
+- **Z.1 Financial Accounts** — quarterly sector Treasury holdings (Fed)
+- **FWTW** — from-whom-to-whom issuer-holder data (Fed)
+- **Enhanced Financial Accounts** — MMF holdings, bank balance sheets, international holdings (Fed)
+- **TIC / SLT** — foreign Treasury holdings by country (Treasury)
+- **Investor Class Auction Allotments** — primary-market buyer composition (Treasury)
+- **Debt to the Penny** — total debt outstanding (Fiscal Data API)
+
+## Method
+
+1. **Harmonized panel**: Merge Z.1 and FWTW into a quarterly sector-level holdings panel with source-priority overlap resolution. Cross-validate against EFA and TIC.
+
+2. **Reconciliation**: Compare sector totals against debt held by the public (Fiscal Data API), separating SOMA from private-sector holdings.
+
+3. **Baseline flows**: Compute quarterly holding changes and buyer/seller margins per sector.
+
+4. **Counterparty inference**: Use RAS (iterative proportional fitting) to estimate likely net seller-to-buyer flows, with a sparse sensitivity variant. The residual/unexplained bucket is always preserved.
+
+5. **Behavior similarity**: Cosine distance over sector features (mean delta, volatility, holding shares) plus rolling correlations.
+
+## Claims discipline
+
+This tool labels outputs as **likely net counterparties**, not exact bilateral trades. It:
+
+- separates primary-market allocation from secondary-market reallocation,
+- preserves and displays a residual bucket in all inference outputs,
+- does not claim exact gross trades or exact immediate counterparties.
 
 ## Repository layout
 
 ```text
-tsyparty/
-  AGENTS.md
-  README.md
-  pyproject.toml
-  Makefile
-  reproduce.sh
-  configs/
-  data/
-  docs/
-  notebooks/
-  outputs/
-  paper/
-  scripts/
-  slides/
-  src/tsyparty/
-  tests/
+src/tsyparty/
+  ingest/         # Downloaders and parsers for each data source
+  reconcile/      # Harmonization, accounting, enrichment
+  baseline/       # Holding changes, buyer/seller flows, primary market
+  infer/          # RAS counterparty matrix estimation
+  behavior/       # Sector similarity analysis
+  validate/       # Cross-validation against independent sources
+  viz/            # Chart generation
+  cli.py          # CLI entry points
+configs/          # Sector, source, inference, and instrument configs
+tests/            # 47 tests
+data/             # Raw, interim, and derived data (gitignored)
+outputs/          # Charts, CSVs, and inference results (gitignored)
 ```
 
-## What this repo will and will not claim
+## Tests
 
-Allowed:
+```bash
+pytest tests/ -v
+```
 
-- likely ultimate **net** sellers to banks or foreigners,
-- primary-market buyer mix,
-- regime-dependent marginal absorbers,
-- similarity rankings and clusters.
+## License
 
-Not allowed:
-
-- exact gross bilateral trades,
-- exact immediate dealer counterparties,
-- exact beneficial foreign owners,
-- literal interpretation of every household residual move.
-
-## Build sequence
-
-1. Freeze crosswalks and estimands.
-2. Land downloaders and source manifests.
-3. Build reconciliation checks.
-4. Publish descriptive baseline.
-5. Implement counterparty matrix V1/V2/V3.
-6. Add behavior module.
-7. Add event and presentation layers.
-8. Write paper and slides.
-
-## Included seed content
-
-- build plan
-- methods memo
-- source registry
-- sector and instrument config files
-- downloader stubs for all core public sources
-- counterparty matrix code
-- similarity code
-- reconciliation helpers
-- toy sample data and tests
-- paper and slides outlines
-- coding-agent instructions in `AGENTS.md`
-
-## Recommended first milestone
-
-Produce three charts from public data only:
-
-1. quarterly Treasury holding changes by sector,
-2. seller-share estimate to banks,
-3. seller-share estimate to foreigners.
+MIT
