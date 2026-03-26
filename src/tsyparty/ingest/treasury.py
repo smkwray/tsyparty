@@ -13,10 +13,14 @@ from tsyparty.registry import load_sources
 def download_investor_class_recent(dest_dir: str | Path) -> list[Path]:
     sources = load_sources()
     spec = sources["investor_class_page"]
-    links = discover_links(
-        spec.landing_url,
-        href_pattern=r"IC-(Coupons|Bills)\.xls",
-    )
+    links: list[str] = []
+    try:
+        links = discover_links(
+            spec.landing_url,
+            href_pattern=r"IC-(Coupons|Bills)\.xls",
+        )
+    except requests.HTTPError:
+        pass
     if not links:
         fallback = [v for k, v in spec.raw.items() if k.startswith("sample_") and str(v).endswith(".xls")]
         links = fallback

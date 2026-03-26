@@ -87,11 +87,12 @@ def _find_header_row(df_raw: pd.DataFrame) -> int:
 
     Treasury XLS files often have title rows before the actual data header.
     We look for a row containing keywords like 'Date', 'CUSIP', 'Term', etc.
+    Headers may contain embedded newlines.
     """
     keywords = {"date", "cusip", "term", "type", "security", "issue", "maturity"}
     for i in range(min(20, len(df_raw))):
-        row_vals = [str(v).strip().lower() for v in df_raw.iloc[i] if pd.notna(v)]
-        hits = sum(1 for v in row_vals if v in keywords)
+        row_vals = [re.sub(r"\s+", " ", str(v)).strip().lower() for v in df_raw.iloc[i] if pd.notna(v)]
+        hits = sum(1 for v in row_vals if any(kw in v for kw in keywords))
         if hits >= 2:
             return i
     return 0
@@ -118,7 +119,7 @@ def parse_investor_class_xls(xls_path: str | Path) -> AuctionParseResult:
     df_raw = pd.read_excel(xls_path, sheet_name=0, header=None, dtype=str)
 
     header_row = _find_header_row(df_raw)
-    headers = [str(v).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(df_raw.iloc[header_row])]
+    headers = [re.sub(r"\s+", " ", str(v)).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(df_raw.iloc[header_row])]
     df = df_raw.iloc[header_row + 1 :].copy()
     df.columns = headers
     df = df.reset_index(drop=True)

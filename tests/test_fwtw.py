@@ -7,10 +7,20 @@ from tsyparty.ingest.fwtw import FWTWParseResult, parse_fwtw_csv
 
 
 SAMPLE_FWTW_CSV = """\
-date,FL31413061105.Q,FL31633061105.Q,FL31763061105.Q,FL31263061105.Q,FL99993061105.Q
-2022:Q4,500.0,800.0,1200.0,3000.0,100.0
-2023:Q1,510.0,820.0,1250.0,3100.0,110.0
-2023:Q2,520.0,810.0,1280.0,3050.0,105.0
+"Instrument Name","Instrument Code","Holder Name","Holder Code","Issuer Name","Issuer Code","Date","Level"
+"Treasury Securities","30611","US-Chartered","76","Federal Govt.","31","2022Q4","1200.0"
+"Treasury Securities","30611","MMF","63","Federal Govt.","31","2022Q4","800.0"
+"Treasury Securities","30611","Rest of World","26","Federal Govt.","31","2022Q4","3000.0"
+"Treasury Securities","30611","Households","15","Federal Govt.","31","2022Q4","500.0"
+"Treasury Securities","30611","US-Chartered","76","Federal Govt.","31","2023Q1","1250.0"
+"Treasury Securities","30611","MMF","63","Federal Govt.","31","2023Q1","820.0"
+"Treasury Securities","30611","Rest of World","26","Federal Govt.","31","2023Q1","3100.0"
+"Treasury Securities","30611","Households","15","Federal Govt.","31","2023Q1","510.0"
+"Treasury Securities","30611","US-Chartered","76","Federal Govt.","31","2023Q2","1280.0"
+"Treasury Securities","30611","MMF","63","Federal Govt.","31","2023Q2","810.0"
+"Treasury Securities","30611","Rest of World","26","Federal Govt.","31","2023Q2","3050.0"
+"Treasury Securities","30611","Households","15","Federal Govt.","31","2023Q2","520.0"
+"Federal Funds and Repos","20500","US-Chartered","76","Rest of World","26","2022Q4","999.0"
 """
 
 
@@ -50,7 +60,7 @@ def test_parse_fwtw_csv_file_not_found():
 
 def test_parse_fwtw_csv_empty(tmp_path):
     csv_path = tmp_path / "empty.csv"
-    csv_path.write_text("date\n")
+    csv_path.write_text('"Instrument Name","Instrument Code","Holder Name","Holder Code","Issuer Name","Issuer Code","Date","Level"\n')
 
     result = parse_fwtw_csv(csv_path)
     assert result.holdings.empty

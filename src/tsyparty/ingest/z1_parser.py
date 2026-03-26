@@ -29,54 +29,58 @@ import pandas as pd
 # Sector codes vary in length (2-3 digits).  We match on the series
 # mnemonic directly.
 Z1_SERIES_SECTOR_MAP: dict[str, str] = {
-    # Households and nonprofit organizations (residual category)
+    # ----- FL-prefix entries (kept for test fixtures & any FA tables that use FL) -----
     "FL153061105.Q": "households_residual",
-    # Nonfinancial corporate business
     "FL113061105.Q": "nonfinancial_corporates",
-    # Nonfinancial noncorporate business (fold into corporates)
     "FL143061105.Q": "nonfinancial_corporates",
-    # State and local governments
     "FL213061105.Q": "state_local_governments",
-    # Federal government retirement funds (fold into pensions)
     "FL343061105.Q": "pensions",
-    # Monetary authority (Fed/SOMA)
     "FL713061105.Q": "fed",
-    # U.S.-chartered depository institutions
     "FL763061105.Q": "banks",
-    # Foreign banking offices in U.S. (fold into banks)
     "FL753061105.Q": "banks",
-    # Credit unions (fold into banks)
     "FL473061105.Q": "banks",
-    # Property-casualty insurance
     "FL513061105.Q": "insurers",
-    # Life insurance companies
     "FL543061105.Q": "insurers",
-    # Private pension funds
     "FL573061105.Q": "pensions",
-    # State and local government retirement funds
     "FL223061105.Q": "pensions",
-    # Money market mutual funds
     "FL633061105.Q": "money_market_funds",
-    # Mutual funds (open-end, ex money-market)
     "FL653061105.Q": "mutual_funds_etfs",
-    # Exchange-traded funds
     "FL563061105.Q": "mutual_funds_etfs",
-    # Government-sponsored enterprises (fold into other_financial)
     "FL403061105.Q": "other_financial",
-    # Security brokers and dealers
     "FL663061105.Q": "dealers",
-    # Rest of the world
     "FL263061105.Q": "foreigners_official",
-    # Holding companies (fold into other_financial)
     "FL733061105.Q": "other_financial",
-    # Funding corporations (fold into other_financial)
     "FL503061105.Q": "other_financial",
-    # Finance companies (fold into other_financial)
     "FL613061105.Q": "other_financial",
-    # REITs (fold into other_financial)
     "FL643061105.Q": "other_financial",
-    # ABS issuers (fold into other_financial)
     "FL673061105.Q": "other_financial",
+    # ----- LM-prefix entries (market-value levels used in actual L.210) -----
+    # Sector totals only — sub-component lines (bills, other) are excluded
+    # to avoid double-counting.
+    "LM153061105.Q": "households_residual",
+    "LM103061103.Q": "nonfinancial_corporates",
+    "LM113061003.Q": "nonfinancial_corporates",
+    "LM213061103.Q": "state_local_governments",
+    "LM713061103.Q": "fed",
+    "LM763061100.Q": "banks",
+    "LM753061103.Q": "banks",
+    "LM743061103.Q": "banks",       # savings institutions
+    "LM473061105.Q": "banks",       # credit unions
+    "LM513061105.Q": "insurers",    # property-casualty total
+    "LM543061105.Q": "insurers",    # life insurance total
+    "LM573061105.Q": "pensions",    # private pension total
+    "LM343061105.Q": "pensions",    # federal retirement total
+    "LM223061143.Q": "pensions",    # state/local retirement
+    "LM653061105.Q": "mutual_funds_etfs",  # mutual funds total
+    "LM563061103.Q": "mutual_funds_etfs",  # ETFs
+    "LM553061103.Q": "other_financial",    # closed-end funds
+    "LM403061105.Q": "other_financial",    # GSEs
+    "LM663061105.Q": "dealers",
+    "LM733061103.Q": "other_financial",    # holding companies
+    "LM263061105.Q": "foreigners_official", # rest of world total
+    # FL-prefix entries that appear in L.210 with non-standard instrument codes
+    "FL673061103.Q": "other_financial",    # ABS issuers
+    "FL503061123.Q": "other_financial",    # funding corporations
 }
 
 # Additional series for total Treasury securities outstanding
