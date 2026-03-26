@@ -10,10 +10,10 @@ lint:
 	ruff check src tests scripts
 
 example:
-	python -m tsyparty.cli example --out outputs/sample
+	python -m tsyparty example --out outputs/sample
 
 plan:
-	python -m tsyparty.cli show-plan
+	python -m tsyparty show-plan
 
 registry:
-	python -m tsyparty.cli registry --public-only
+	python -m tsyparty registry --public-only
