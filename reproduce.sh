@@ -1,8 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python -m tsyparty.cli show-plan
-python -m tsyparty.cli registry --public-only
-python -m tsyparty.cli example --out outputs/sample
+# Full reproducible pipeline for tsyparty
+# Requires: virtualenv at ~/venvs/tsyparty with project installed
 
-echo "Seed repo bootstrapped. Next step: run scripts/download_all_public.py"
+PYTHON="${PYTHON:-$HOME/venvs/tsyparty/bin/python}"
+TSY="$PYTHON -B -m tsyparty"
+
+echo "=== Step 1: Download public data ==="
+$TSY download z1 fwtw investor_class debt_to_penny tic_slt
+
+echo ""
+echo "=== Step 2: Parse raw data ==="
+$TSY parse-z1 data/raw_public/z1/z1_csv_files.zip --out data/interim
+$TSY parse-fwtw data/raw_public/fwtw/fwtw_data.csv --out data/interim
+$TSY parse-auction data/raw_public/auction/*.xls --out data/interim
+$TSY parse-debt data/raw_public/fiscaldata/debt_to_penny_api.json --out data/interim
+$TSY parse-tic data/raw_public/tic/slt1d_globl.csv --out data/interim
+
+echo ""
+echo "=== Step 3: Harmonize and reconcile ==="
+$TSY harmonize --interim data/interim --out data/derived
+
+echo ""
+echo "=== Step 4: Descriptive baseline ==="
+$TSY baseline --derived data/derived --out outputs/baseline
+
+echo ""
+echo "=== Step 5: Counterparty inference ==="
+$TSY infer --derived data/derived --out outputs/inference
+
+echo ""
+echo "=== Step 6: Behavior similarity ==="
+$TSY similarity --derived data/derived --out outputs/similarity
+
+echo ""
+echo "=== Done ==="
+echo "Outputs:"
+echo "  data/derived/harmonized_panel.csv"
+echo "  data/derived/reconciliation.csv"
+echo "  outputs/baseline/"
+echo "  outputs/inference/counterparty_flows.csv"
+echo "  outputs/similarity/"
