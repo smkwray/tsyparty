@@ -190,6 +190,168 @@ def cmd_harmonize(args: argparse.Namespace) -> None:
     print(f"Reconciliation: {report.summary}")
 
 
+def cmd_baseline(args: argparse.Namespace) -> None:
+    """Compute descriptive baseline outputs from harmonized panel."""
+    from tsyparty.baseline.flows import holdings_changes_from_levels, buyer_seller_margins
+    from tsyparty.viz.charts import save_stacked_area, save_line_chart
+
+    derived = Path(args.derived)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
+    private = panel[~panel["sector"].isin(["_total", "_discrepancy"])].copy()
+
+    # 1. Quarterly holding changes
+    changes = holdings_changes_from_levels(private, group_cols=["sector", "instrument"])
+    changes.to_csv(out / "holding_changes.csv", index=False)
+    recent = changes.dropna(subset=["delta_holdings"])
+    print(f"Holding changes: {len(recent)} rows")
+
+    # 2. Pivot to wide for charts
+    wide_changes = recent.pivot_table(
+        index="date", columns="sector", values="delta_holdings", aggfunc="sum"
+    ).sort_index().fillna(0)
+    # Keep only recent history for readability (post-2000)
+    wide_recent = wide_changes.loc[wide_changes.index >= "2000-01-01"]
+    if not wide_recent.empty:
+        save_line_chart(wide_recent, "Quarterly Holding Changes by Sector", out / "holding_changes.png", ylabel="Millions USD")
+        print(f"  Chart: {out / 'holding_changes.png'}")
+
+    # 3. Latest-quarter buyer/seller margins
+    latest_date = recent["date"].max()
+    latest = recent[recent["date"] == latest_date].groupby("sector", as_index=False)["delta_holdings"].sum()
+    latest = latest.rename(columns={"delta_holdings": "net_flow"})
+    buyers, sellers = buyer_seller_margins(latest)
+    margins = pd.DataFrame({
+        "buyers": buyers.reindex(latest["sector"]).fillna(0),
+        "sellers": sellers.reindex(latest["sector"]).fillna(0),
+    })
+    margins.to_csv(out / "latest_margins.csv")
+    print(f"Latest quarter ({latest_date.date()}): {len(buyers)} buyers, {len(sellers)} sellers")
+
+    # 4. Primary-market composition (if auction data exists)
+    for instrument in ("bills", "nominal_coupons"):
+        comp_path = derived.parent / "interim" / f"{instrument}_quarterly_composition.csv"
+        if comp_path.exists():
+            comp = pd.read_csv(comp_path, parse_dates=["date"])
+            comp_wide = comp.pivot_table(index="date", columns="buyer_class", values="share", aggfunc="sum").fillna(0)
+            comp_recent = comp_wide.loc[comp_wide.index >= "2010-01-01"] if len(comp_wide) > 40 else comp_wide
+            if not comp_recent.empty:
+                save_stacked_area(comp_recent, f"Primary Market Buyer Shares ({instrument})", out / f"primary_market_{instrument}.png")
+                print(f"  Chart: {out / f'primary_market_{instrument}.png'}")
+
+    # 5. Seller shares to banks and foreigners
+    wide_levels = private.pivot_table(index="date", columns="sector", values="holdings", aggfunc="sum").sort_index()
+    if "banks" in wide_levels.columns and "foreigners_official" in wide_levels.columns:
+        shares = wide_levels.div(wide_levels.sum(axis=1), axis=0).fillna(0).clip(lower=0)
+        shares_recent = shares.loc[shares.index >= "2000-01-01"]
+        if not shares_recent.empty:
+            save_stacked_area(shares_recent, "Sector Holding Shares", out / "sector_shares.png")
+            print(f"  Chart: {out / 'sector_shares.png'}")
+
+    print(f"Wrote baseline outputs to {out}")
+
+
+def cmd_infer(args: argparse.Namespace) -> None:
+    """Run counterparty inference from harmonized panel."""
+    from tsyparty.baseline.flows import holdings_changes_from_levels, buyer_seller_margins
+    from tsyparty.infer.counterparty import sign_baseline_matrix, ras_balance, sparse_threshold_rebalance, residual_bucket
+    from tsyparty.config import load_yaml
+
+    derived = Path(args.derived)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
+    private = panel[~panel["sector"].isin(["_total", "_discrepancy", "fed"])].copy()
+
+    inference_cfg = load_yaml("configs/inference.yml")
+
+    # Compute quarterly changes
+    changes = holdings_changes_from_levels(private, group_cols=["sector", "instrument"])
+    changes = changes.dropna(subset=["delta_holdings"])
+
+    quarters = sorted(changes["date"].unique())
+    results = []
+
+    for q in quarters:
+        q_data = changes[changes["date"] == q].groupby("sector", as_index=False)["delta_holdings"].sum()
+        q_data = q_data.rename(columns={"delta_holdings": "net_flow"})
+
+        # Skip quarters where everyone is flat
+        if q_data["net_flow"].abs().sum() < 1.0:
+            continue
+
+        try:
+            buyers, sellers = buyer_seller_margins(q_data)
+        except Exception:
+            continue
+
+        if buyers.empty or sellers.empty:
+            continue
+
+        # Balance marginals: residual goes to explicit bucket
+        buyer_total = float(buyers.sum())
+        seller_total = float(sellers.sum())
+        gap = buyer_total - seller_total
+
+        if abs(gap) > 0.01:
+            if gap > 0:
+                sellers = pd.concat([sellers, pd.Series({"_residual": gap})])
+            else:
+                buyers = pd.concat([buyers, pd.Series({"_residual": -gap})])
+
+        try:
+            baseline = sign_baseline_matrix(buyers, sellers)
+            prior = pd.DataFrame(1.0, index=sellers.index, columns=buyers.index)
+            dense, dense_diag = ras_balance(prior, sellers, buyers)
+            sparse, sparse_diag = sparse_threshold_rebalance(
+                dense, sellers, buyers,
+                threshold_quantile=inference_cfg.get("sparse_sensitivity", {}).get("threshold_quantile", 0.65),
+            )
+        except Exception as e:
+            print(f"  {pd.Timestamp(q).date()}: skipped ({e})")
+            continue
+
+        # Save per-quarter result
+        for label, matrix, diag in [("dense", dense, dense_diag), ("sparse", sparse, sparse_diag)]:
+            for seller in matrix.index:
+                for buyer in matrix.columns:
+                    val = float(matrix.loc[seller, buyer])
+                    if abs(val) < 0.01:
+                        continue
+                    results.append({
+                        "date": q,
+                        "seller": seller,
+                        "buyer": buyer,
+                        "amount": val,
+                        "method": label,
+                        "converged": diag.converged,
+                    })
+
+    if results:
+        df = pd.DataFrame(results)
+        df.to_csv(out / "counterparty_flows.csv", index=False)
+        print(f"Counterparty inference: {len(df)} flow entries across {df['date'].nunique()} quarters")
+
+        # Summary: who sells most to banks and foreigners?
+        latest_q = df["date"].max()
+        latest_sparse = df[(df["date"] == latest_q) & (df["method"] == "sparse")]
+        if not latest_sparse.empty:
+            print(f"\nLatest quarter ({pd.Timestamp(latest_q).date()}) — likely net sellers (sparse):")
+            for buyer in ["banks", "foreigners_official"]:
+                to_buyer = latest_sparse[latest_sparse["buyer"] == buyer].sort_values("amount", ascending=False)
+                if not to_buyer.empty:
+                    print(f"  To {buyer}:")
+                    for _, row in to_buyer.head(5).iterrows():
+                        print(f"    {row['seller']:30s} {row['amount']:>10,.0f}")
+    else:
+        print("No quarters produced valid inference results.")
+
+    print(f"Wrote inference outputs to {out}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tsyparty")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -231,6 +393,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_harmonize.add_argument("--out", default="data/derived", help="Output directory")
     p_harmonize.add_argument("--priority", default="z1", choices=["z1", "fwtw"], help="Source priority on overlap")
     p_harmonize.set_defaults(func=cmd_harmonize)
+
+    # --- Analysis commands ---
+    p_baseline = subparsers.add_parser("baseline", help="Compute descriptive baseline outputs")
+    p_baseline.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_baseline.add_argument("--out", default="outputs/baseline", help="Output directory")
+    p_baseline.set_defaults(func=cmd_baseline)
+
+    p_infer = subparsers.add_parser("infer", help="Run counterparty inference")
+    p_infer.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_infer.add_argument("--out", default="outputs/inference", help="Output directory")
+    p_infer.set_defaults(func=cmd_infer)
 
     return parser
 

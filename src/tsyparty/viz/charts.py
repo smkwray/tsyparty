@@ -18,3 +18,19 @@ def save_stacked_area(frame: pd.DataFrame, title: str, dest: str | Path) -> Path
     plt.savefig(dest, dpi=200)
     plt.close()
     return dest
+
+
+def save_line_chart(frame: pd.DataFrame, title: str, dest: str | Path, ylabel: str = "") -> Path:
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    ax = frame.plot(figsize=(12, 6))
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("")
+    ax.axhline(0, color="black", linewidth=0.5, linestyle="--")
+    ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=8)
+    plt.tight_layout()
+    plt.savefig(dest, dpi=200)
+    plt.close()
+    return dest
