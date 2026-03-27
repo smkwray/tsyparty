@@ -306,3 +306,20 @@ def test_write_outputs_writes_skip_records(tmp_path):
             records = json.load(f)
         assert len(records) == len(result.skip_records)
         assert all("reason" in r for r in records)
+
+
+def test_claims_label_from_config():
+    """claims_label should be derived from YAML claims section."""
+    cfg = {"claims": {"label_outputs_as_likely_net_counterparties": True}}
+    config = InferenceConfig.from_dict(cfg)
+    assert config.claims_label == "likely_net_counterparties"
+
+    cfg2 = {"claims": {"label_outputs_as_likely_net_counterparties": False}}
+    config2 = InferenceConfig.from_dict(cfg2)
+    assert config2.claims_label == "counterparty_flows"
+
+
+def test_claims_label_default():
+    """Default claims_label should be likely_net_counterparties."""
+    config = InferenceConfig()
+    assert config.claims_label == "likely_net_counterparties"

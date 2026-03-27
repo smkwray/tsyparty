@@ -41,18 +41,34 @@ def test_iter_sources():
     assert all(isinstance(s, SourceSpec) for s in specs)
 
 
-def test_all_sources_have_download_strategy():
-    """Every source in sources.yml must declare a download_strategy."""
+EXECUTABLE_STRATEGIES = {"direct_url", "json_api", "fiscaldata_api", "discover_artifact"}
+
+
+def test_all_strategies_are_executable_or_null():
+    """Every source must have an executable strategy or null (manual-only)."""
     sources = load_sources()
-    missing = [key for key, spec in sources.items() if spec.download_strategy is None]
-    assert not missing, f"Sources without download_strategy: {missing}"
+    invalid = [
+        (key, spec.download_strategy)
+        for key, spec in sources.items()
+        if spec.download_strategy is not None
+        and spec.download_strategy not in EXECUTABLE_STRATEGIES
+    ]
+    assert not invalid, f"Sources with unexecutable strategies: {invalid}"
+
+
+def test_manual_sources_have_null_strategy():
+    """Landing-page-only sources (tic_main, ffiec_bulk_data) should have null strategy."""
+    sources = load_sources()
+    for key in ("tic_main", "ffiec_bulk_data"):
+        assert sources[key].download_strategy is None, f"{key} should be null strategy"
 
 
 def test_iter_sources_public_only_filters():
-    """public_only=True should exclude landing_page-only sources."""
+    """public_only=True should exclude null-strategy (manual) sources."""
     all_specs = list(iter_sources(public_only=False))
     public_specs = list(iter_sources(public_only=True))
-    # landing_page sources have download_strategy but are not directly downloadable
-    # public_only filters sources with no download_strategy
-    assert len(public_specs) <= len(all_specs)
+    assert len(public_specs) < len(all_specs)
     assert all(s.download_strategy is not None for s in public_specs)
+    public_keys = {s.key for s in public_specs}
+    assert "tic_main" not in public_keys
+    assert "ffiec_bulk_data" not in public_keys

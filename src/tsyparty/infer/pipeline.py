@@ -51,6 +51,7 @@ class InferenceConfig:
     compare_to_fwtw_levels: bool = True
     compare_to_auction_allotments: bool = True
     compare_foreign_side_to_tic: bool = True
+    claims_label: str = "likely_net_counterparties"
 
     @classmethod
     def from_dict(cls, cfg: dict[str, Any]) -> InferenceConfig:
@@ -58,6 +59,12 @@ class InferenceConfig:
         sparse = cfg.get("sparse_sensitivity", {})
         sparse_cv = cfg.get("sparse_cv", {})
         validation = cfg.get("validation", {})
+        claims = cfg.get("claims", {})
+        claims_label = (
+            "likely_net_counterparties"
+            if claims.get("label_outputs_as_likely_net_counterparties", True)
+            else "counterparty_flows"
+        )
         return cls(
             max_iter=ras.get("max_iter", 10_000),
             tol=ras.get("tol", 1.0e-8),
@@ -72,6 +79,7 @@ class InferenceConfig:
             compare_to_fwtw_levels=validation.get("compare_to_fwtw_levels", True),
             compare_to_auction_allotments=validation.get("compare_to_auction_allotments", True),
             compare_foreign_side_to_tic=validation.get("compare_foreign_side_to_tic", True),
+            claims_label=claims_label,
         )
 
     def validate(self) -> None:
@@ -488,16 +496,22 @@ def write_outputs(result: InferenceResult, out_dir: Path, config: InferenceConfi
         "date_range": date_range,
         "quarters_processed": result.quarters_processed,
         "quarters_skipped": result.quarters_skipped,
-        "files_written": sorted(p.name for p in paths.values()),
-        "claims_label": "likely_net_counterparties",
+        "files_written": sorted([p.name for p in paths.values()] + ["manifest.json"]),
+        "claims_label": config.claims_label if config else "likely_net_counterparties",
     }
     if config is not None:
         manifest["config"] = {
             "max_iter": config.max_iter, "tol": config.tol,
             "epsilon": config.epsilon, "threshold_quantile": config.threshold_quantile,
             "sparse_enabled": config.sparse_enabled, "sparse_cv_enabled": config.sparse_cv_enabled,
+            "sparse_cv_quantiles": config.sparse_cv_quantiles,
             "use_structural_zeros": config.use_structural_zeros,
             "exclude_sectors": config.exclude_sectors,
+            "require_market_clearing": config.require_market_clearing,
+            "compare_to_fwtw_levels": config.compare_to_fwtw_levels,
+            "compare_to_auction_allotments": config.compare_to_auction_allotments,
+            "compare_foreign_side_to_tic": config.compare_foreign_side_to_tic,
+            "claims_label": config.claims_label,
         }
     manifest_path = out_dir / "manifest.json"
     with open(manifest_path, "w", encoding="utf-8") as f:

@@ -1,5 +1,6 @@
+# Metadata-only keys (not loaded by InferenceConfig):
 version: 1
-canonical_frequency: quarterly
+canonical_frequency: quarterly  # documents the estimator's native frequency
 
 # The pipeline excludes fed from the private-sector matrix and preserves
 # a _residual bucket for the buyer-seller gap in every quarter.

@@ -572,7 +572,7 @@ def cmd_enrich_foreign(args: argparse.Namespace) -> None:
 
 def cmd_similarity(args: argparse.Namespace) -> None:
     """Compute sector behavior similarity from harmonized panel."""
-    from tsyparty.behavior.pipeline import SimilarityConfig, run_similarity, write_outputs, write_charts
+    from tsyparty.behavior.pipeline import SimilarityConfig, run_similarity, write_outputs, write_no_data_outputs, write_charts
 
     panel_path = Path(args.panel_file) if args.panel_file else Path(args.derived) / "harmonized_panel.csv"
     out = Path(args.out)
@@ -590,7 +590,8 @@ def cmd_similarity(args: argparse.Namespace) -> None:
     result = run_similarity(panel, config, context=context)
 
     if result is None:
-        print("Not enough data for similarity analysis.")
+        write_no_data_outputs(out, config=config)
+        print("Not enough data for similarity analysis. Wrote empty artifacts + manifest.")
         return
 
     paths = write_outputs(result, out, config=config)

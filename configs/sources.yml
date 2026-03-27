@@ -62,7 +62,8 @@ sources:
     frequency: monthly
     landing_url: https://home.treasury.gov/data/treasury-international-capital-tic-system-home-page
     purpose: landing page for TIC releases and notes
-    download_strategy: landing_page
+    download_strategy: null  # requires manual download from landing page
+    note: reference-only landing page, not an automated download target
 
   tic_slt_table1_txt:
     category: treasury
@@ -153,7 +154,8 @@ sources:
     frequency: quarterly
     landing_url: https://cdr.ffiec.gov/public/pws/downloadbulkdata.aspx
     purpose: call report bulk files
-    download_strategy: landing_page
+    download_strategy: null  # requires manual download from landing page
+    note: reference-only landing page, not an automated download target
 
   sec_nmfp:
     category: sec

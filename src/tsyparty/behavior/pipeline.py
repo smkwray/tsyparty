@@ -38,6 +38,7 @@ class SimilarityConfig:
     x_cols: list[str] = field(
         default_factory=lambda: ["net_public_supply", "delta_soma"]
     )
+    minimum_observations: int = 20
 
     @classmethod
     def from_dict(cls, cfg: dict[str, Any]) -> SimilarityConfig:
@@ -49,6 +50,7 @@ class SimilarityConfig:
             exclude_sectors=cfg.get("exclude_sectors", ["_total", "_discrepancy", "fed"]),
             distance_metric=cfg.get("distance_metric", "cosine"),
             x_cols=cfg.get("x_cols", ["net_public_supply", "delta_soma"]),
+            minimum_observations=cfg.get("minimum_observations", 20),
         )
 
     @classmethod
@@ -96,6 +98,7 @@ class SimilarityConfig:
             min_date=rolling.get("min_date", "2000-01-01"),
             distance_metric=distance.get("default", "cosine") if isinstance(distance, dict) else "cosine",
             x_cols=rolling.get("x_cols", ["net_public_supply", "delta_soma"]),
+            minimum_observations=rolling.get("minimum_observations", 20),
             **overrides,
         )
 
@@ -129,7 +132,7 @@ def build_features(
     ).fillna(0)
 
     wide_recent = wide.loc[wide.index >= config.min_date]
-    if wide_recent.empty or wide_recent.shape[1] < 3:
+    if wide_recent.empty or wide_recent.shape[1] < 3 or wide_recent.shape[0] < config.minimum_observations:
         return pd.DataFrame()
 
     features = pd.DataFrame(index=wide_recent.columns)
@@ -226,8 +229,9 @@ def run_similarity(
                         x_cols=x_cols,
                         window=config.rolling_window,
                     )
-                except (ValueError, np.linalg.LinAlgError):
-                    pass
+                except (ValueError, np.linalg.LinAlgError) as exc:
+                    import logging
+                    logging.warning("Rolling absorption beta estimation failed: %s", exc)
 
     return SimilarityResult(
         features=features,
@@ -283,18 +287,80 @@ def write_outputs(result: SimilarityResult, out_dir: Path, config: SimilarityCon
     manifest = {
         "schema_version": 1,
         "pipeline": "similarity",
+        "status": "ok",
         "build_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "n_sectors": int(result.distance_matrix.shape[0]),
-        "targets": list(result.closest.keys()),
-        "files_written": sorted(p.name for p in paths.values()),
+        "targets_configured": config.targets if config else [],
+        "targets_found": list(result.closest.keys()),
+        "files_written": sorted([p.name for p in paths.values()] + ["manifest.json"]),
     }
     if config is not None:
         manifest["config"] = {
             "distance_metric": config.distance_metric,
             "rolling_window": config.rolling_window,
+            "min_date": config.min_date,
+            "top_n": config.top_n,
+            "minimum_observations": config.minimum_observations,
             "x_cols": config.x_cols,
             "exclude_sectors": config.exclude_sectors,
+            "targets": config.targets,
         }
+    manifest_path = out_dir / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+    paths["manifest"] = manifest_path
+
+    return paths
+
+
+def write_no_data_outputs(out_dir: Path, config: SimilarityConfig) -> dict[str, Path]:
+    """Write empty artifact set when insufficient data for similarity analysis.
+
+    Ensures the CLI always produces a manifest and empty files so consumers
+    can distinguish 'no data' from 'pipeline did not run'.
+    """
+    import datetime
+    import json
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+
+    features_path = out_dir / "sector_features.csv"
+    pd.DataFrame().to_csv(features_path)
+    paths["features"] = features_path
+
+    dist_path = out_dir / "sector_distance_matrix.csv"
+    pd.DataFrame().to_csv(dist_path)
+    paths["distance_matrix"] = dist_path
+
+    corr_path = out_dir / "rolling_correlations.csv"
+    pd.DataFrame().to_csv(corr_path)
+    paths["rolling_correlations"] = corr_path
+
+    beta_path = out_dir / "rolling_absorption_betas.csv"
+    pd.DataFrame(columns=["date", "sector"]).to_csv(beta_path, index=False)
+    paths["absorption_betas"] = beta_path
+
+    manifest = {
+        "schema_version": 1,
+        "pipeline": "similarity",
+        "status": "no_data",
+        "build_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "n_sectors": 0,
+        "targets_configured": config.targets,
+        "targets_found": [],
+        "files_written": sorted([p.name for p in paths.values()] + ["manifest.json"]),
+        "config": {
+            "distance_metric": config.distance_metric,
+            "rolling_window": config.rolling_window,
+            "min_date": config.min_date,
+            "top_n": config.top_n,
+            "minimum_observations": config.minimum_observations,
+            "x_cols": config.x_cols,
+            "exclude_sectors": config.exclude_sectors,
+            "targets": config.targets,
+        },
+    }
     manifest_path = out_dir / "manifest.json"
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)

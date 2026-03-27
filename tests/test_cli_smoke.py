@@ -68,6 +68,42 @@ def test_cmd_similarity_smoke(tmp_path):
     assert (out / "rolling_absorption_betas.csv").exists()
 
 
+def test_cmd_similarity_no_data(tmp_path):
+    """cmd_similarity with insufficient data should still write manifest + empty artifacts."""
+    from tsyparty.cli import cmd_similarity
+    import json
+
+    # Only 2 sectors, 1 quarter — not enough for similarity
+    panel = pd.DataFrame({
+        "date": [pd.Timestamp("2001-03-31")] * 2,
+        "sector": ["banks", "dealers"],
+        "instrument": ["treasury"] * 2,
+        "holdings": [100.0, 200.0],
+    })
+    panel.to_csv(tmp_path / "panel.csv", index=False)
+    out = tmp_path / "similarity_out"
+    args = argparse.Namespace(
+        panel_file=str(tmp_path / "panel.csv"),
+        derived=str(tmp_path),
+        out=str(out),
+    )
+    cmd_similarity(args)
+
+    # Must still produce output directory + manifest
+    assert out.exists()
+    manifest_path = out / "manifest.json"
+    assert manifest_path.exists()
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    assert manifest["status"] == "no_data"
+    assert manifest["n_sectors"] == 0
+    assert "manifest.json" in manifest["files_written"]
+    assert (out / "sector_features.csv").exists()
+    assert (out / "sector_distance_matrix.csv").exists()
+    assert (out / "rolling_correlations.csv").exists()
+    assert (out / "rolling_absorption_betas.csv").exists()
+
+
 def test_cmd_validate_smoke(tmp_path):
     """cmd_validate should run without error on a synthetic panel (no external data)."""
     from tsyparty.cli import cmd_validate

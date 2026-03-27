@@ -10,6 +10,7 @@ from tsyparty.behavior.pipeline import (
     build_features,
     run_similarity,
     write_outputs,
+    write_no_data_outputs,
     write_charts,
 )
 
@@ -168,6 +169,7 @@ def test_from_behavior_yml_loads_config():
     assert config.distance_metric == "cosine"
     assert config.rolling_window == 20
     assert "net_public_supply" in config.x_cols
+    assert config.minimum_observations == 20
 
 
 def test_exclude_sectors_includes_fed():
@@ -212,3 +214,17 @@ def test_run_similarity_absorption_betas_with_enough_data():
         assert "sector" in result.absorption_betas.columns
         assert "date" in result.absorption_betas.columns
         assert any(c.startswith("beta_") for c in result.absorption_betas.columns)
+
+
+def test_minimum_observations_gates_build_features():
+    """build_features should return empty if fewer observations than minimum_observations."""
+    panel = _make_panel(5)  # 5 quarters
+    config = SimilarityConfig(minimum_observations=10)  # require 10
+    features = build_features(panel, config)
+    assert features.empty
+
+
+def test_from_dict_reads_minimum_observations():
+    """from_dict should propagate minimum_observations."""
+    config = SimilarityConfig.from_dict({"minimum_observations": 30})
+    assert config.minimum_observations == 30
