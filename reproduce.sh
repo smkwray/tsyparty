@@ -8,7 +8,7 @@ PYTHON="${PYTHON:-$HOME/venvs/tsyparty/bin/python}"
 TSY="$PYTHON -B -m tsyparty"
 
 echo "=== Step 1: Download public data ==="
-$TSY download z1 fwtw investor_class debt_to_penny tic_slt efa
+$TSY download z1 fwtw investor_class debt_to_penny tic_slt efa soma
 
 echo ""
 echo "=== Step 2: Parse raw data ==="
@@ -18,6 +18,7 @@ $TSY parse-auction data/raw_public/auction/*.xls --out data/interim
 $TSY parse-debt data/raw_public/fiscaldata/debt_to_penny_api.json --out data/interim
 $TSY parse-tic data/raw_public/tic/slt1d_globl.csv --out data/interim
 $TSY parse-efa --efa-dir data/raw_public/efa --out data/interim
+$TSY parse-soma data/raw_public/soma/soma_holdings_page.json --out data/interim
 
 echo ""
 echo "=== Step 3: Harmonize and reconcile ==="
@@ -52,9 +53,16 @@ echo "=== Done ==="
 echo "Outputs:"
 echo "  data/derived/harmonized_panel.csv"
 echo "  data/derived/harmonized_panel_enriched.csv"
+echo "  data/derived/enrichment_metadata.json"
 echo "  data/derived/reconciliation.csv"
+echo "  data/interim/soma_weekly.csv"
+echo "  data/interim/soma_quarterly_delta.csv"
 echo "  outputs/validation/validation_summary.csv"
 echo "  outputs/baseline/"
 echo "  outputs/primary_market/"
 echo "  outputs/inference/counterparty_flows.csv"
-echo "  outputs/similarity/"
+echo "  outputs/inference/quarter_diagnostics.json"
+echo "  outputs/inference/baseline_matrices.csv"
+echo "  outputs/similarity/sector_features.csv"
+echo "  outputs/similarity/sector_distance_matrix.csv"
+echo "  outputs/similarity/rolling_absorption_betas.csv"

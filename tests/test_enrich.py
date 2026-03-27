@@ -1,8 +1,9 @@
 """Tests for foreign enrichment module."""
 
+import json
 import pandas as pd
 
-from tsyparty.reconcile.enrich import enrich_foreign_split, estimate_official_share
+from tsyparty.reconcile.enrich import enrich_foreign_split, estimate_official_share, write_enrichment_metadata
 
 
 def test_enrich_foreign_split_basic():
@@ -53,3 +54,23 @@ def test_estimate_official_share():
     assert not share.empty
     # Japan + China = 1800 / 2300 total ≈ 78.3%
     assert share.iloc[0] > 0.7
+
+
+def test_write_enrichment_metadata_with_tic(tmp_path):
+    share = pd.Series([0.78, 0.75], index=pd.to_datetime(["2024-03-31", "2024-06-30"]))
+    path = write_enrichment_metadata(tmp_path / "meta.json", share)
+    assert path.exists()
+    with open(path) as f:
+        meta = json.load(f)
+    assert meta["split_method"] == "tic_country_heuristic"
+    assert meta["quarters_with_tic_data"] == 2
+    assert 0.75 <= meta["avg_official_share"] <= 0.78
+
+
+def test_write_enrichment_metadata_default(tmp_path):
+    path = write_enrichment_metadata(tmp_path / "meta.json", None)
+    with open(path) as f:
+        meta = json.load(f)
+    assert meta["split_method"] == "default_constant"
+    assert meta["avg_official_share"] == 0.65
+    assert meta["quarters_with_tic_data"] == 0

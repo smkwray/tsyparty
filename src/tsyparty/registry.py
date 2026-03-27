@@ -15,6 +15,8 @@ class SourceSpec:
     purpose: str | None = None
     direct_url: str | None = None
     artifact_discovery: str | None = None
+    download_strategy: str | None = None
+    api_url: str | None = None
     raw: dict[str, Any] | None = None
 
 
@@ -30,6 +32,8 @@ def load_sources() -> dict[str, SourceSpec]:
             purpose=value.get("purpose"),
             direct_url=value.get("direct_url"),
             artifact_discovery=value.get("artifact_discovery"),
+            download_strategy=value.get("download_strategy"),
+            api_url=value.get("api_url"),
             raw=value,
         )
     return out

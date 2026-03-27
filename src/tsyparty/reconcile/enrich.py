@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pandas as pd
 
 
@@ -70,3 +73,37 @@ def enrich_foreign_split(
 
     result = pd.concat([other_rows, pd.DataFrame(enriched)], ignore_index=True)
     return result.sort_values(["date", "sector"]).reset_index(drop=True)
+
+
+def write_enrichment_metadata(
+    out_path: Path,
+    official_share: pd.Series | None,
+    default_official_share: float = 0.65,
+) -> Path:
+    """Write enrichment metadata JSON describing the split method and shares."""
+    if official_share is not None and not official_share.empty:
+        method = "tic_country_heuristic"
+        avg_share = float(official_share.mean())
+        min_share = float(official_share.min())
+        max_share = float(official_share.max())
+        n_quarters = len(official_share)
+    else:
+        method = "default_constant"
+        avg_share = default_official_share
+        min_share = default_official_share
+        max_share = default_official_share
+        n_quarters = 0
+
+    metadata = {
+        "split_method": method,
+        "official_holder_countries": sorted(OFFICIAL_HOLDER_COUNTRIES),
+        "avg_official_share": round(avg_share, 4),
+        "min_official_share": round(min_share, 4),
+        "max_official_share": round(max_share, 4),
+        "quarters_with_tic_data": n_quarters,
+        "default_official_share": default_official_share,
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+    return out_path

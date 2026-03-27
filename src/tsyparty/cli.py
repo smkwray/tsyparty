@@ -10,6 +10,9 @@ from tsyparty.infer.counterparty import ras_balance, sign_baseline_matrix, spars
 from tsyparty.behavior.similarity import cosine_distance_matrix
 from tsyparty.viz.charts import save_stacked_area
 
+# NOTE: ras_balance, sign_baseline_matrix, sparse_threshold_rebalance, and
+# cosine_distance_matrix are still imported for the `example` command.
+
 
 def cmd_show_plan(_: argparse.Namespace) -> None:
     print("tsyparty build order")
@@ -86,45 +89,77 @@ def cmd_download(args: argparse.Namespace) -> None:
     dest = Path(args.dest)
     sources_to_download = args.sources or ["z1", "fwtw", "investor_class"]
 
+    # Shorthand aliases map to specific download logic
+    ALIASES = {
+        "z1": "_z1",
+        "fwtw": "_fwtw",
+        "investor_class": "_investor_class",
+        "tic_slt": "_tic_slt",
+        "efa": "_efa",
+        "debt_to_penny": "_debt_to_penny",
+        "soma": "_soma",
+        "h8": "_h8",
+        "primary_dealer": "_primary_dealer",
+    }
+
     for source in sources_to_download:
-        if source == "z1":
-            from tsyparty.ingest.fed import download_z1_current
-
-            print(f"Downloading Z.1 CSV zip to {dest / 'z1'}")
-            download_z1_current(dest / "z1")
-        elif source == "fwtw":
-            from tsyparty.ingest.fwtw import download_fwtw
-
-            print(f"Downloading FWTW CSV to {dest / 'fwtw'}")
-            download_fwtw(dest / "fwtw")
-        elif source == "investor_class":
-            from tsyparty.ingest.treasury import download_investor_class_recent
-
-            print(f"Downloading investor-class XLS to {dest / 'auction'}")
-            download_investor_class_recent(dest / "auction")
-        elif source == "tic_slt":
-            from tsyparty.ingest.treasury import download_direct_treasury_source
-
-            print(f"Downloading TIC SLT to {dest / 'tic'}")
-            download_direct_treasury_source("tic_slt_table1_txt", dest / "tic")
-            download_direct_treasury_source("tic_slt_historical_global", dest / "tic")
-        elif source == "efa":
-            from tsyparty.ingest.fed import download_direct_source
-
-            for key in ("efa_mmf_holdings", "efa_banks", "efa_international_country"):
-                print(f"Downloading {key} to {dest / 'efa'}")
-                download_direct_source(key, dest / "efa")
-        elif source == "debt_to_penny":
-            from tsyparty.ingest.treasury import download_fiscaldata_api
-
-            print(f"Downloading debt-to-penny to {dest / 'fiscaldata'}")
-            download_fiscaldata_api(
-                "debt_to_penny_api", dest / "fiscaldata",
-                params={"fields": "record_date,debt_held_public_amt,intragov_hold_amt,tot_pub_debt_out_amt",
-                        "sort": "-record_date", "page[size]": "10000"},
-            )
+        if source in ALIASES:
+            _download_aliased(ALIASES[source], dest)
         else:
-            print(f"Unknown source: {source}")
+            # Try the generic registry-driven dispatcher
+            from tsyparty.ingest.download import download_source
+            try:
+                sub_dir = dest / source.replace("_", "/").split("/")[0]
+                print(f"Downloading {source} to {sub_dir}")
+                download_source(source, sub_dir)
+            except (KeyError, ValueError) as e:
+                print(f"Unknown source: {source} ({e})")
+
+
+def _download_aliased(alias: str, dest: Path) -> None:
+    """Handle legacy aliased download targets."""
+    if alias == "_z1":
+        from tsyparty.ingest.fed import download_z1_current
+        print(f"Downloading Z.1 CSV zip to {dest / 'z1'}")
+        download_z1_current(dest / "z1")
+    elif alias == "_fwtw":
+        from tsyparty.ingest.fwtw import download_fwtw
+        print(f"Downloading FWTW CSV to {dest / 'fwtw'}")
+        download_fwtw(dest / "fwtw")
+    elif alias == "_investor_class":
+        from tsyparty.ingest.treasury import download_investor_class_recent
+        print(f"Downloading investor-class XLS to {dest / 'auction'}")
+        download_investor_class_recent(dest / "auction")
+    elif alias == "_tic_slt":
+        from tsyparty.ingest.treasury import download_direct_treasury_source
+        print(f"Downloading TIC SLT to {dest / 'tic'}")
+        download_direct_treasury_source("tic_slt_table1_txt", dest / "tic")
+        download_direct_treasury_source("tic_slt_historical_global", dest / "tic")
+    elif alias == "_efa":
+        from tsyparty.ingest.fed import download_direct_source
+        for key in ("efa_mmf_holdings", "efa_banks", "efa_international_country"):
+            print(f"Downloading {key} to {dest / 'efa'}")
+            download_direct_source(key, dest / "efa")
+    elif alias == "_debt_to_penny":
+        from tsyparty.ingest.treasury import download_fiscaldata_api
+        print(f"Downloading debt-to-penny to {dest / 'fiscaldata'}")
+        download_fiscaldata_api(
+            "debt_to_penny_api", dest / "fiscaldata",
+            params={"fields": "record_date,debt_held_public_amt,intragov_hold_amt,tot_pub_debt_out_amt",
+                    "sort": "-record_date", "page[size]": "10000"},
+        )
+    elif alias == "_soma":
+        from tsyparty.ingest.download import download_source
+        print(f"Downloading SOMA holdings to {dest / 'soma'}")
+        download_source("soma_holdings_page", dest / "soma")
+    elif alias == "_h8":
+        from tsyparty.ingest.download import download_source
+        print(f"Downloading H.8 to {dest / 'h8'}")
+        download_source("h8_release_page", dest / "h8")
+    elif alias == "_primary_dealer":
+        from tsyparty.ingest.download import download_source
+        print(f"Downloading primary dealer statistics to {dest / 'dealer'}")
+        download_source("primary_dealer_statistics", dest / "dealer")
 
 
 def cmd_parse_z1(args: argparse.Namespace) -> None:
@@ -218,6 +253,64 @@ def cmd_parse_efa(args: argparse.Namespace) -> None:
             print(f"EFA foreign total LT: {len(intl_q)} quarters, {intl_q['date'].min().date()} to {intl_q['date'].max().date()}")
 
 
+def cmd_parse_soma(args: argparse.Namespace) -> None:
+    """Parse SOMA Treasury holdings JSON into weekly series and quarterly delta."""
+    from tsyparty.context.soma import parse_soma_json
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    result = parse_soma_json(args.json_path)
+    if result.weekly.empty:
+        print("No valid SOMA records found.")
+        return
+
+    result.weekly.to_csv(out / "soma_weekly.csv", index=False)
+    result.quarterly_delta.to_csv(out / "soma_quarterly_delta.csv", index=False)
+    print(f"SOMA holdings: {result.n_records} records → {len(result.weekly)} weekly obs, {len(result.quarterly_delta)} quarterly deltas")
+    print(f"Wrote to {out}")
+
+
+def cmd_parse_h8(args: argparse.Namespace) -> None:
+    """Parse H.8 bank balance sheet CSV into weekly series."""
+    from tsyparty.context.h8 import parse_h8_csv
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    result = parse_h8_csv(args.csv_path)
+    if result.weekly.empty:
+        print("No valid H.8 records found.")
+        return
+
+    result.weekly.to_csv(out / "h8_weekly.csv", index=False)
+    print(f"H.8: {result.n_series} series, {len(result.weekly)} weekly obs")
+    if result.date_range:
+        print(f"  Date range: {result.date_range[0].date()} to {result.date_range[1].date()}")
+    print(f"Wrote to {out}")
+
+
+def cmd_parse_dealer(args: argparse.Namespace) -> None:
+    """Parse primary dealer statistics JSON into weekly series."""
+    from tsyparty.context.dealer import parse_dealer_json
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    result = parse_dealer_json(args.json_path)
+    if result.weekly.empty:
+        print("No valid dealer statistics found.")
+        return
+
+    result.weekly.to_csv(out / "dealer_weekly.csv", index=False)
+    print(f"Dealer stats: {result.n_series} series, {len(result.weekly)} weekly obs")
+    if result.date_range:
+        print(f"  Date range: {result.date_range[0].date()} to {result.date_range[1].date()}")
+    if result.source_periods:
+        print(f"  Source periods: {result.source_periods}")
+    print(f"Wrote to {out}")
+
+
 def cmd_validate(args: argparse.Namespace) -> None:
     """Cross-validate harmonized panel against EFA and TIC sources."""
     from tsyparty.validate.crosscheck import run_crosschecks
@@ -227,7 +320,8 @@ def cmd_validate(args: argparse.Namespace) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
+    panel_path = Path(args.panel_file) if args.panel_file else derived / "harmonized_panel.csv"
+    panel = pd.read_csv(panel_path, parse_dates=["date"])
 
     efa_bank = _read_optional_csv(interim / "efa_bank_treasury.csv")
     efa_mmf = _read_optional_csv(interim / "efa_mmf_treasury.csv")
@@ -365,87 +459,35 @@ def cmd_baseline(args: argparse.Namespace) -> None:
 
 def cmd_infer(args: argparse.Namespace) -> None:
     """Run counterparty inference from harmonized panel."""
-    from tsyparty.baseline.flows import holdings_changes_from_levels, buyer_seller_margins
-    from tsyparty.infer.counterparty import sign_baseline_matrix, ras_balance, sparse_threshold_rebalance, residual_bucket
     from tsyparty.config import load_yaml
+    from tsyparty.infer.pipeline import InferenceConfig, run_inference, validate_inference, write_outputs
 
-    derived = Path(args.derived)
+    panel_path = Path(args.panel_file) if args.panel_file else Path(args.derived) / "harmonized_panel.csv"
     out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
+    interim = Path(args.derived).parent / "interim"
 
-    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
-    private = panel[~panel["sector"].isin(["_total", "_discrepancy", "fed"])].copy()
-
+    panel = pd.read_csv(panel_path, parse_dates=["date"])
     inference_cfg = load_yaml("configs/inference.yml")
+    config = InferenceConfig.from_dict(inference_cfg)
 
-    # Compute quarterly changes
-    changes = holdings_changes_from_levels(private, group_cols=["sector", "instrument"])
-    changes = changes.dropna(subset=["delta_holdings"])
+    result = run_inference(panel, config)
 
-    quarters = sorted(changes["date"].unique())
-    results = []
+    # Run validation checks against available data
+    fwtw = _read_optional_csv(interim / "fwtw_holdings.csv")
+    tic_foreign = _read_optional_csv(interim / "tic_foreign_holdings.csv")
+    auction = _read_optional_csv(interim / "bills_allotments.csv")
+    if auction is None:
+        auction = _read_optional_csv(interim / "nominal_coupons_allotments.csv")
+    result.validation_results = validate_inference(
+        result, config, fwtw=fwtw, auction_allotments=auction, tic_foreign=tic_foreign,
+    )
 
-    for q in quarters:
-        q_data = changes[changes["date"] == q].groupby("sector", as_index=False)["delta_holdings"].sum()
-        q_data = q_data.rename(columns={"delta_holdings": "net_flow"})
+    paths = write_outputs(result, out)
 
-        # Skip quarters where everyone is flat
-        if q_data["net_flow"].abs().sum() < 1.0:
-            continue
+    print(f"Counterparty inference: {len(result.flows)} flow entries across {result.quarters_processed} quarters ({result.quarters_skipped} skipped)")
 
-        try:
-            buyers, sellers = buyer_seller_margins(q_data)
-        except Exception:
-            continue
-
-        if buyers.empty or sellers.empty:
-            continue
-
-        # Balance marginals: residual goes to explicit bucket
-        buyer_total = float(buyers.sum())
-        seller_total = float(sellers.sum())
-        gap = buyer_total - seller_total
-
-        if abs(gap) > 0.01:
-            if gap > 0:
-                sellers = pd.concat([sellers, pd.Series({"_residual": gap})])
-            else:
-                buyers = pd.concat([buyers, pd.Series({"_residual": -gap})])
-
-        try:
-            baseline = sign_baseline_matrix(buyers, sellers)
-            prior = pd.DataFrame(1.0, index=sellers.index, columns=buyers.index)
-            dense, dense_diag = ras_balance(prior, sellers, buyers)
-            sparse, sparse_diag = sparse_threshold_rebalance(
-                dense, sellers, buyers,
-                threshold_quantile=inference_cfg.get("sparse_sensitivity", {}).get("threshold_quantile", 0.65),
-            )
-        except Exception as e:
-            print(f"  {pd.Timestamp(q).date()}: skipped ({e})")
-            continue
-
-        # Save per-quarter result
-        for label, matrix, diag in [("dense", dense, dense_diag), ("sparse", sparse, sparse_diag)]:
-            for seller in matrix.index:
-                for buyer in matrix.columns:
-                    val = float(matrix.loc[seller, buyer])
-                    if abs(val) < 0.01:
-                        continue
-                    results.append({
-                        "date": q,
-                        "seller": seller,
-                        "buyer": buyer,
-                        "amount": val,
-                        "method": label,
-                        "converged": diag.converged,
-                    })
-
-    if results:
-        df = pd.DataFrame(results)
-        df.to_csv(out / "counterparty_flows.csv", index=False)
-        print(f"Counterparty inference: {len(df)} flow entries across {df['date'].nunique()} quarters")
-
-        # Summary: who sells most to banks and foreigners?
+    if not result.flows.empty:
+        df = result.flows
         latest_q = df["date"].max()
         latest_sparse = df[(df["date"] == latest_q) & (df["method"] == "sparse")]
         if not latest_sparse.empty:
@@ -456,8 +498,10 @@ def cmd_infer(args: argparse.Namespace) -> None:
                     print(f"  To {buyer}:")
                     for _, row in to_buyer.head(5).iterrows():
                         print(f"    {row['seller']:30s} {row['amount']:>10,.0f}")
-    else:
-        print("No quarters produced valid inference results.")
+
+    for check_name, check_df in result.validation_results.items():
+        if not check_df.empty:
+            print(f"  Validation {check_name}: {len(check_df)} comparisons")
 
     print(f"Wrote inference outputs to {out}")
 
@@ -493,13 +537,14 @@ def cmd_primary_market(args: argparse.Namespace) -> None:
 def cmd_enrich_foreign(args: argparse.Namespace) -> None:
     """Enrich harmonized panel by splitting foreigners into official vs private."""
     from tsyparty.ingest.tic import parse_slt_table1_countries
-    from tsyparty.reconcile.enrich import estimate_official_share, enrich_foreign_split
+    from tsyparty.reconcile.enrich import estimate_official_share, enrich_foreign_split, write_enrichment_metadata
 
     derived = Path(args.derived)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
+    panel_path = Path(args.panel_file) if args.panel_file else derived / "harmonized_panel.csv"
+    panel = pd.read_csv(panel_path, parse_dates=["date"])
 
     tic_path = Path(args.tic_dir) / "slt_table1.txt"
     official_share = None
@@ -513,91 +558,49 @@ def cmd_enrich_foreign(args: argparse.Namespace) -> None:
     enriched_panel = enrich_foreign_split(panel, official_share)
     enriched_panel.to_csv(out / "harmonized_panel_enriched.csv", index=False)
 
+    write_enrichment_metadata(out / "enrichment_metadata.json", official_share)
+
     mean_share = float(official_share.mean()) if official_share is not None and not official_share.empty else 0.65
     print(f"Foreign enrichment: mean official share = {mean_share:.1%}")
     print(f"Panel expanded from {len(panel)} to {len(enriched_panel)} rows (added foreigners_private)")
     print(f"Wrote to {out / 'harmonized_panel_enriched.csv'}")
+    print(f"Wrote enrichment metadata to {out / 'enrichment_metadata.json'}")
 
 
 def cmd_similarity(args: argparse.Namespace) -> None:
     """Compute sector behavior similarity from harmonized panel."""
-    import numpy as np
-    from tsyparty.baseline.flows import holdings_changes_from_levels
-    from tsyparty.behavior.similarity import cosine_distance_matrix, closest_sectors
-    from tsyparty.viz.charts import save_line_chart
+    from tsyparty.behavior.pipeline import SimilarityConfig, run_similarity, write_outputs, write_charts
 
-    derived = Path(args.derived)
+    panel_path = Path(args.panel_file) if args.panel_file else Path(args.derived) / "harmonized_panel.csv"
     out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
+    derived = Path(args.derived)
 
-    panel = pd.read_csv(derived / "harmonized_panel.csv", parse_dates=["date"])
-    private = panel[~panel["sector"].isin(["_total", "_discrepancy"])].copy()
+    panel = pd.read_csv(panel_path, parse_dates=["date"])
+    config = SimilarityConfig.from_sectors_yml()
 
-    # Compute quarterly holding changes
-    changes = holdings_changes_from_levels(private, group_cols=["sector", "instrument"])
-    changes = changes.dropna(subset=["delta_holdings"])
+    # Load context factors if available (SOMA quarterly delta, etc.)
+    context = None
+    soma_path = derived.parent / "interim" / "soma_quarterly_delta.csv"
+    if soma_path.exists():
+        context = pd.read_csv(soma_path, parse_dates=["date"])
 
-    # Pivot to wide: date x sector
-    wide = changes.pivot_table(index="date", columns="sector", values="delta_holdings", aggfunc="sum").fillna(0)
+    result = run_similarity(panel, config, context=context)
 
-    # Feature 1: Correlation of holding changes (post-2000 for stability)
-    wide_recent = wide.loc[wide.index >= "2000-01-01"]
-    if wide_recent.empty or wide_recent.shape[1] < 3:
+    if result is None:
         print("Not enough data for similarity analysis.")
         return
 
-    # Feature construction: mean change, volatility, share of total, trend
-    features = pd.DataFrame(index=wide_recent.columns)
-    features["mean_delta"] = wide_recent.mean()
-    features["volatility"] = wide_recent.std()
-    features["share_of_total_change"] = wide_recent.abs().mean() / wide_recent.abs().mean().sum()
+    paths = write_outputs(result, out)
+    chart_paths = write_charts(result, out)
 
-    # Bill-share approximation: ratio of level to total (from latest available)
-    levels = private.pivot_table(index="date", columns="sector", values="holdings", aggfunc="sum")
-    if not levels.empty:
-        latest_levels = levels.iloc[-1]
-        features["share_of_total_holdings"] = latest_levels / latest_levels.sum()
+    print(f"Distance matrix: {result.distance_matrix.shape[0]}x{result.distance_matrix.shape[1]} sectors")
+    for target, nearest in result.closest.items():
+        print(f"\n  Closest to {target}:")
+        for sector, d in nearest.items():
+            print(f"    {sector:30s} {d:.4f}")
 
-    features = features.dropna()
-    if features.empty or len(features) < 3:
-        print("Not enough features for similarity analysis.")
-        return
-
-    # Compute cosine distance matrix
-    dist = cosine_distance_matrix(features)
-    dist.to_csv(out / "sector_distance_matrix.csv")
-    print(f"Distance matrix: {dist.shape[0]}x{dist.shape[1]} sectors")
-
-    # Closest sectors for key targets
-    for target in ["banks", "foreigners_official", "money_market_funds"]:
-        if target in dist.index:
-            closest = closest_sectors(dist, target, top_n=5)
-            print(f"\n  Closest to {target}:")
-            for sector, d in closest.items():
-                print(f"    {sector:30s} {d:.4f}")
-
-    # Heatmap
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(10, 8))
-    im = ax.imshow(dist.values, cmap="YlOrRd", aspect="auto")
-    ax.set_xticks(range(len(dist.columns)))
-    ax.set_yticks(range(len(dist.index)))
-    ax.set_xticklabels(dist.columns, rotation=45, ha="right", fontsize=8)
-    ax.set_yticklabels(dist.index, fontsize=8)
-    ax.set_title("Sector Behavior Distance (cosine)")
-    fig.colorbar(im, ax=ax, label="Distance")
-    plt.tight_layout()
-    plt.savefig(out / "sector_distance_heatmap.png", dpi=200)
-    plt.close()
-    print(f"  Chart: {out / 'sector_distance_heatmap.png'}")
-
-    # Rolling correlation of key pairs
-    if "banks" in wide_recent.columns and "foreigners_official" in wide_recent.columns:
-        rolling_corr = wide_recent["banks"].rolling(20).corr(wide_recent["foreigners_official"])
-        corr_df = pd.DataFrame({"banks_vs_foreigners": rolling_corr}).dropna()
-        if not corr_df.empty:
-            save_line_chart(corr_df, "Rolling Correlation: Banks vs Foreigners (20Q)", out / "rolling_corr_banks_foreigners.png", ylabel="Correlation")
-            print(f"  Chart: {out / 'rolling_corr_banks_foreigners.png'}")
+    if result.absorption_betas is not None:
+        print(f"\n  Absorption betas: {len(result.absorption_betas)} obs across {result.absorption_betas['sector'].nunique()} sectors")
 
     print(f"Wrote similarity outputs to {out}")
 
@@ -653,6 +656,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_parse_tic.add_argument("--out", default="data/interim", help="Output directory")
     p_parse_tic.set_defaults(func=cmd_parse_tic)
 
+    p_parse_soma = subparsers.add_parser("parse-soma", help="Parse SOMA Treasury holdings JSON")
+    p_parse_soma.add_argument("json_path", help="Path to SOMA JSON file")
+    p_parse_soma.add_argument("--out", default="data/interim", help="Output directory")
+    p_parse_soma.set_defaults(func=cmd_parse_soma)
+
+    p_parse_h8 = subparsers.add_parser("parse-h8", help="Parse H.8 bank balance sheet CSV")
+    p_parse_h8.add_argument("csv_path", help="Path to H.8 CSV file")
+    p_parse_h8.add_argument("--out", default="data/interim", help="Output directory")
+    p_parse_h8.set_defaults(func=cmd_parse_h8)
+
+    p_parse_dealer = subparsers.add_parser("parse-dealer", help="Parse primary dealer statistics JSON")
+    p_parse_dealer.add_argument("json_path", help="Path to dealer JSON file")
+    p_parse_dealer.add_argument("--out", default="data/interim", help="Output directory")
+    p_parse_dealer.set_defaults(func=cmd_parse_dealer)
+
     p_harmonize = subparsers.add_parser("harmonize", help="Build harmonized panel and reconcile")
     p_harmonize.add_argument("--interim", default="data/interim", help="Interim data directory")
     p_harmonize.add_argument("--out", default="data/derived", help="Output directory")
@@ -667,6 +685,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_infer = subparsers.add_parser("infer", help="Run counterparty inference")
     p_infer.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_infer.add_argument("--panel-file", default=None, help="Path to panel CSV (default: <derived>/harmonized_panel.csv)")
     p_infer.add_argument("--out", default="outputs/inference", help="Output directory")
     p_infer.set_defaults(func=cmd_infer)
 
@@ -677,18 +696,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_enrich = subparsers.add_parser("enrich-foreign", help="Split foreign holdings into official/private")
     p_enrich.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_enrich.add_argument("--panel-file", default=None, help="Path to panel CSV (default: <derived>/harmonized_panel.csv)")
     p_enrich.add_argument("--tic-dir", default="data/raw_public/tic", help="TIC SLT data directory")
     p_enrich.add_argument("--out", default="data/derived", help="Output directory")
     p_enrich.set_defaults(func=cmd_enrich_foreign)
 
     p_validate = subparsers.add_parser("validate", help="Cross-validate panel against EFA/TIC")
     p_validate.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_validate.add_argument("--panel-file", default=None, help="Path to panel CSV (default: <derived>/harmonized_panel.csv)")
     p_validate.add_argument("--interim", default="data/interim", help="Interim data directory")
     p_validate.add_argument("--out", default="outputs/validation", help="Output directory")
     p_validate.set_defaults(func=cmd_validate)
 
     p_similarity = subparsers.add_parser("similarity", help="Compute sector behavior similarity")
     p_similarity.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_similarity.add_argument("--panel-file", default=None, help="Path to panel CSV (default: <derived>/harmonized_panel.csv)")
     p_similarity.add_argument("--out", default="outputs/similarity", help="Output directory")
     p_similarity.set_defaults(func=cmd_similarity)
 

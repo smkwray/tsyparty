@@ -60,6 +60,7 @@ def ras_balance(
     support: pd.DataFrame | None = None,
     max_iter: int = 10_000,
     tol: float = 1.0e-8,
+    epsilon: float = EPS,
 ) -> tuple[pd.DataFrame, MatrixDiagnostics]:
     """
     Balance a nonnegative prior matrix to match row and column targets.
@@ -82,7 +83,7 @@ def ras_balance(
 
     arr = matrix.to_numpy(dtype=float)
     mask = support.to_numpy(dtype=bool)
-    arr = np.where(mask, np.maximum(arr, EPS), 0.0)
+    arr = np.where(mask, np.maximum(arr, epsilon), 0.0)
 
     row_target_arr = row_targets.to_numpy(dtype=float)
     col_target_arr = col_targets.to_numpy(dtype=float)
@@ -95,10 +96,10 @@ def ras_balance(
 
         row_sums = arr.sum(axis=1)
         for i, target in enumerate(row_target_arr):
-            if target <= EPS:
+            if target <= epsilon:
                 arr[i, :] = 0.0
                 continue
-            if row_sums[i] <= EPS:
+            if row_sums[i] <= epsilon:
                 allowed = mask[i, :]
                 if not allowed.any():
                     raise ValueError(f"Row {row_targets.index[i]!r} has positive target but no allowed support")
@@ -108,10 +109,10 @@ def ras_balance(
 
         col_sums = arr.sum(axis=0)
         for j, target in enumerate(col_target_arr):
-            if target <= EPS:
+            if target <= epsilon:
                 arr[:, j] = 0.0
                 continue
-            if col_sums[j] <= EPS:
+            if col_sums[j] <= epsilon:
                 allowed = mask[:, j]
                 if not allowed.any():
                     raise ValueError(f"Column {col_targets.index[j]!r} has positive target but no allowed support")
@@ -157,6 +158,77 @@ def sparse_threshold_rebalance(
     sparse_prior = dense_matrix.where(dense_matrix >= threshold, EPS)
     sparse_prior = sparse_prior.where(support, 0.0)
     return ras_balance(sparse_prior, row_targets, col_targets, support=support)
+
+
+def sparse_cv(
+    dense_matrix: pd.DataFrame,
+    row_targets: pd.Series,
+    col_targets: pd.Series,
+    support: pd.DataFrame | None = None,
+    quantiles: list[float] | None = None,
+) -> tuple[pd.DataFrame, MatrixDiagnostics, dict]:
+    """V3 sparse estimator: cross-validate threshold quantiles.
+
+    Tests multiple threshold quantiles and selects the one that produces
+    the tightest convergence with the fewest nonzero cells (parsimony).
+
+    Returns (best_matrix, best_diagnostics, cv_report).
+    """
+    if quantiles is None:
+        quantiles = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
+
+    values = dense_matrix.to_numpy()
+    positives = values[values > 0]
+    if positives.size == 0:
+        raise ValueError("dense_matrix has no positive cells")
+
+    results: list[dict] = []
+    for q in quantiles:
+        try:
+            matrix, diag = sparse_threshold_rebalance(
+                dense_matrix, row_targets, col_targets,
+                support=support, threshold_quantile=q,
+            )
+        except Exception:
+            continue
+
+        nonzero = int((matrix.abs() > EPS).sum().sum())
+        max_error = max(diag.max_abs_row_error, diag.max_abs_col_error)
+
+        results.append({
+            "quantile": q,
+            "converged": diag.converged,
+            "iterations": diag.iterations,
+            "max_error": max_error,
+            "nonzero_cells": nonzero,
+            "matrix": matrix,
+            "diagnostics": diag,
+        })
+
+    if not results:
+        raise ValueError("No quantile produced a valid result")
+
+    # Score: prefer converged, then fewer nonzero cells, then lower error
+    converged = [r for r in results if r["converged"]]
+    pool = converged if converged else results
+    best = min(pool, key=lambda r: (r["nonzero_cells"], r["max_error"]))
+
+    cv_report = {
+        "quantiles_tested": quantiles,
+        "best_quantile": best["quantile"],
+        "results": [
+            {
+                "quantile": r["quantile"],
+                "converged": r["converged"],
+                "iterations": r["iterations"],
+                "max_error": r["max_error"],
+                "nonzero_cells": r["nonzero_cells"],
+            }
+            for r in results
+        ],
+    }
+
+    return best["matrix"], best["diagnostics"], cv_report
 
 
 def residual_bucket(buyers: pd.Series, sellers: pd.Series) -> float:

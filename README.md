@@ -60,20 +60,23 @@ tsyparty similarity --derived data/derived --out outputs/similarity
 
 | Command | Description |
 |---------|-------------|
-| `download` | Download public source data (Z.1, FWTW, TIC, EFA, Fiscal Data) |
+| `download` | Download public source data (Z.1, FWTW, TIC, EFA, Fiscal Data, SOMA, H.8, dealer) |
 | `parse-z1` | Parse Z.1 Financial Accounts CSV zip (table L.210) |
 | `parse-fwtw` | Parse FWTW issuer-holder CSV |
 | `parse-auction` | Parse Treasury investor-class auction XLS files |
 | `parse-debt` | Parse Fiscal Data API debt-to-penny JSON |
 | `parse-tic` | Parse TIC SLT historical global CSV |
 | `parse-efa` | Parse EFA data (MMF, banks, international) |
+| `parse-soma` | Parse SOMA Treasury holdings JSON into weekly series and quarterly deltas |
+| `parse-h8` | Parse H.8 bank balance sheet data into weekly series |
+| `parse-dealer` | Parse primary dealer statistics JSON into weekly series |
 | `harmonize` | Build harmonized quarterly panel and run reconciliation |
 | `validate` | Cross-validate panel against EFA/TIC sources |
 | `enrich-foreign` | Split foreign holdings into official vs private |
 | `baseline` | Compute holding changes, margins, and composition charts |
 | `primary-market` | Build primary-market allocation from auction data |
-| `infer` | Run RAS/sparse counterparty inference |
-| `similarity` | Compute sector behavior distance matrix and charts |
+| `infer` | Run RAS/sparse counterparty inference with validation checks |
+| `similarity` | Compute sector behavior distance matrix, absorption betas, and charts |
 | `show-plan` | Print the build sequence |
 | `registry` | List configured public data sources |
 | `example` | Generate example outputs from toy data |
@@ -86,6 +89,9 @@ tsyparty similarity --derived data/derived --out outputs/similarity
 - **TIC / SLT** — foreign Treasury holdings by country (Treasury)
 - **Investor Class Auction Allotments** — primary-market buyer composition (Treasury)
 - **Debt to the Penny** — total debt outstanding (Fiscal Data API)
+- **SOMA Holdings** — weekly Fed Treasury holdings by security type (NY Fed)
+- **H.8** — weekly bank Treasury/agency securities (Fed via FRED)
+- **Primary Dealer Statistics** — weekly dealer positions, financing, transactions (NY Fed)
 
 ## Method
 
@@ -120,7 +126,7 @@ src/tsyparty/
   viz/            # Chart generation
   cli.py          # CLI entry points
 configs/          # Sector, source, inference, and instrument configs
-tests/            # 47 tests
+tests/            # 127 tests
 data/             # Raw, interim, and derived data (gitignored)
 outputs/          # Charts, CSVs, and inference results (gitignored)
 ```
