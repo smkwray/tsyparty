@@ -93,7 +93,7 @@ def parse_h8_csv(path: str | Path) -> H8ParseResult:
 
     if data.empty:
         return H8ParseResult(
-            weekly=pd.DataFrame(columns=list({"date", "series_id", "value", "frequency", "units", "source_key"})),
+            weekly=pd.DataFrame(columns=sorted({"date", "series_id", "value", "frequency", "units", "source_key"})),
             n_series=0,
             date_range=None,
         )

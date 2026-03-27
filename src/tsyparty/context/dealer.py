@@ -69,7 +69,7 @@ def parse_dealer_json(path: str | Path) -> DealerParseResult:
         records = []
 
     if not records:
-        empty = pd.DataFrame(columns=list({"date", "series_id", "value", "frequency", "units", "source_key"}))
+        empty = pd.DataFrame(columns=sorted({"date", "series_id", "value", "frequency", "units", "source_key"}))
         return DealerParseResult(weekly=empty, n_series=0, date_range=None, source_periods=[])
 
     df = pd.DataFrame(records)

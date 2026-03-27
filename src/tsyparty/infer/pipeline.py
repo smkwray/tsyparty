@@ -6,11 +6,12 @@ reusable, testable functions.
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import json
 import numpy as np
 import pandas as pd
 
@@ -104,6 +105,17 @@ class QuarterResult:
 
 
 @dataclass(slots=True)
+class SkipRecord:
+    """Structured record for a skipped or errored quarter."""
+
+    date: Any
+    status: str  # "skipped" | "error"
+    reason: str  # "near_zero_net_flow" | "margin_split_failed" | "empty_margins" | "uncaught_exception"
+    error_type: str | None = None
+    error_message: str | None = None
+
+
+@dataclass(slots=True)
 class InferenceResult:
     """Full pipeline output."""
 
@@ -111,6 +123,7 @@ class InferenceResult:
     baselines: list[tuple[Any, pd.DataFrame]] = field(default_factory=list)
     quarter_diagnostics: list[dict] = field(default_factory=list)
     validation_results: dict[str, pd.DataFrame] = field(default_factory=dict)
+    skip_records: list[SkipRecord] = field(default_factory=list)
     quarters_processed: int = 0
     quarters_skipped: int = 0
 
@@ -164,21 +177,22 @@ def run_quarter(
     q_changes: pd.DataFrame,
     date: Any,
     config: InferenceConfig,
-) -> QuarterResult | None:
-    """Run inference for a single quarter. Returns None if the quarter is skipped."""
+) -> QuarterResult | SkipRecord:
+    """Run inference for a single quarter. Returns SkipRecord if the quarter cannot be processed."""
     q_data = q_changes.groupby("sector", as_index=False)["delta_holdings"].sum()
     q_data = q_data.rename(columns={"delta_holdings": "net_flow"})
 
     if q_data["net_flow"].abs().sum() < 1.0:
-        return None
+        return SkipRecord(date=date, status="skipped", reason="near_zero_net_flow")
 
     try:
         buyers, sellers = buyer_seller_margins(q_data)
-    except Exception:
-        return None
+    except Exception as exc:
+        return SkipRecord(date=date, status="skipped", reason="margin_split_failed",
+                          error_type=type(exc).__name__, error_message=str(exc))
 
     if buyers.empty or sellers.empty:
-        return None
+        return SkipRecord(date=date, status="skipped", reason="empty_margins")
 
     # Balance marginals: residual goes to explicit bucket
     buyer_total = float(buyers.sum())
@@ -220,16 +234,23 @@ def run_quarter(
     sparse_cv_matrix = None
     sparse_cv_diag = None
     sparse_cv_report = None
+    sparse_cv_error: str | None = None
     if config.sparse_cv_enabled:
         try:
             sparse_cv_matrix, sparse_cv_diag, sparse_cv_report = sparse_cv(
                 dense, sellers, buyers, support=support,
                 quantiles=config.sparse_cv_quantiles,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.warning("sparse_cv failed for %s: %s", date, exc)
+            sparse_cv_error = f"{type(exc).__name__}: {exc}"
 
     mc = validate_market_clearing(dense, sellers, buyers, tol=config.tol * 100)
+    if config.require_market_clearing and not mc["passes"]:
+        logging.warning(
+            "Market clearing failed for %s: max_row_gap=%.4f, max_col_gap=%.4f",
+            date, mc["max_row_gap"], mc["max_col_gap"],
+        )
 
     return QuarterResult(
         date=date,
@@ -256,6 +277,7 @@ def run_inference(
     """Run the full quarterly inference pipeline."""
     if config is None:
         config = InferenceConfig()
+    config.validate()
 
     changes = prepare_quarters(panel, exclude_sectors=config.exclude_sectors)
     quarters = sorted(changes["date"].unique())
@@ -263,18 +285,21 @@ def run_inference(
     flow_rows: list[dict] = []
     baselines: list[tuple[Any, pd.DataFrame]] = []
     diagnostics: list[dict] = []
-    skipped = 0
+    skip_records: list[SkipRecord] = []
 
     for q in quarters:
         q_changes = changes[changes["date"] == q]
         try:
             result = run_quarter(q_changes, q, config)
-        except Exception:
-            skipped += 1
+        except Exception as exc:
+            skip_records.append(SkipRecord(
+                date=q, status="error", reason="uncaught_exception",
+                error_type=type(exc).__name__, error_message=str(exc),
+            ))
             continue
 
-        if result is None:
-            skipped += 1
+        if isinstance(result, SkipRecord):
+            skip_records.append(result)
             continue
 
         # Collect diagnostics for this quarter
@@ -332,8 +357,9 @@ def run_inference(
         flows=flows,
         baselines=baselines,
         quarter_diagnostics=diagnostics,
+        skip_records=skip_records,
         quarters_processed=len(diagnostics),
-        quarters_skipped=skipped,
+        quarters_skipped=len(skip_records),
     )
 
 
@@ -390,45 +416,92 @@ def validate_inference(
     return checks
 
 
-def write_outputs(result: InferenceResult, out_dir: Path) -> dict[str, Path]:
-    """Write inference artifacts to disk. Returns paths written."""
+def write_outputs(result: InferenceResult, out_dir: Path, config: InferenceConfig | None = None) -> dict[str, Path]:
+    """Write inference artifacts to disk. Returns paths written.
+
+    Always writes all artifact files (empty if no data) so consumers
+    can distinguish 'no data' from 'pipeline did not run'.
+    """
+    import datetime
+
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
 
-    if not result.flows.empty:
-        flows_path = out_dir / "counterparty_flows.csv"
-        result.flows.to_csv(flows_path, index=False)
-        paths["flows"] = flows_path
+    # Always write flows (empty CSV with headers if no data)
+    flows_path = out_dir / "counterparty_flows.csv"
+    result.flows.to_csv(flows_path, index=False)
+    paths["flows"] = flows_path
 
-    if result.baselines:
-        baseline_rows = []
-        for date, matrix in result.baselines:
-            for seller in matrix.index:
-                for buyer in matrix.columns:
-                    val = float(matrix.loc[seller, buyer])
-                    if abs(val) < 0.01:
-                        continue
-                    baseline_rows.append({
-                        "date": date,
-                        "seller": seller,
-                        "buyer": buyer,
-                        "baseline_amount": val,
-                    })
-        if baseline_rows:
-            baseline_path = out_dir / "baseline_matrices.csv"
-            pd.DataFrame(baseline_rows).to_csv(baseline_path, index=False)
-            paths["baselines"] = baseline_path
+    # Always write baselines
+    baseline_rows = []
+    for date, matrix in result.baselines:
+        for seller in matrix.index:
+            for buyer in matrix.columns:
+                val = float(matrix.loc[seller, buyer])
+                if abs(val) < 0.01:
+                    continue
+                baseline_rows.append({
+                    "date": date, "seller": seller, "buyer": buyer,
+                    "baseline_amount": val,
+                })
+    baseline_path = out_dir / "baseline_matrices.csv"
+    pd.DataFrame(baseline_rows or [], columns=["date", "seller", "buyer", "baseline_amount"]).to_csv(
+        baseline_path, index=False
+    )
+    paths["baselines"] = baseline_path
 
-    if result.quarter_diagnostics:
-        diag_path = out_dir / "quarter_diagnostics.json"
-        with open(diag_path, "w", encoding="utf-8") as f:
-            json.dump(result.quarter_diagnostics, f, indent=2)
-        paths["diagnostics"] = diag_path
+    # Always write diagnostics
+    diag_path = out_dir / "quarter_diagnostics.json"
+    with open(diag_path, "w", encoding="utf-8") as f:
+        json.dump(result.quarter_diagnostics, f, indent=2)
+    paths["diagnostics"] = diag_path
 
+    # Always write skip records
+    skip_path = out_dir / "skip_records.json"
+    records = [
+        {"date": str(pd.Timestamp(r.date).date()), "status": r.status,
+         "reason": r.reason, "error_type": r.error_type, "error_message": r.error_message}
+        for r in result.skip_records
+    ]
+    with open(skip_path, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2)
+    paths["skip_records"] = skip_path
+
+    # Validation CSVs (only when non-empty)
     for check_name, check_df in result.validation_results.items():
         if not check_df.empty:
             check_path = out_dir / f"{check_name}.csv"
             check_df.to_csv(check_path, index=False)
             paths[check_name] = check_path
+
+    # Manifest
+    date_range = {}
+    if not result.flows.empty:
+        date_range = {
+            "min": str(pd.Timestamp(result.flows["date"].min()).date()),
+            "max": str(pd.Timestamp(result.flows["date"].max()).date()),
+        }
+    manifest = {
+        "schema_version": 1,
+        "pipeline": "inference",
+        "build_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "date_range": date_range,
+        "quarters_processed": result.quarters_processed,
+        "quarters_skipped": result.quarters_skipped,
+        "files_written": sorted(p.name for p in paths.values()),
+        "claims_label": "likely_net_counterparties",
+    }
+    if config is not None:
+        manifest["config"] = {
+            "max_iter": config.max_iter, "tol": config.tol,
+            "epsilon": config.epsilon, "threshold_quantile": config.threshold_quantile,
+            "sparse_enabled": config.sparse_enabled, "sparse_cv_enabled": config.sparse_cv_enabled,
+            "use_structural_zeros": config.use_structural_zeros,
+            "exclude_sectors": config.exclude_sectors,
+        }
+    manifest_path = out_dir / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+    paths["manifest"] = manifest_path
 
     return paths

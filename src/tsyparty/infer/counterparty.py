@@ -160,14 +160,14 @@ def sparse_threshold_rebalance(
     return ras_balance(sparse_prior, row_targets, col_targets, support=support)
 
 
-def sparse_cv(
+def sparse_quantile_sweep(
     dense_matrix: pd.DataFrame,
     row_targets: pd.Series,
     col_targets: pd.Series,
     support: pd.DataFrame | None = None,
     quantiles: list[float] | None = None,
 ) -> tuple[pd.DataFrame, MatrixDiagnostics, dict]:
-    """V3 sparse estimator: cross-validate threshold quantiles.
+    """V3 sparse estimator: sweep threshold quantiles for parsimony.
 
     Tests multiple threshold quantiles and selects the one that produces
     the tightest convergence with the fewest nonzero cells (parsimony).
@@ -229,6 +229,10 @@ def sparse_cv(
     }
 
     return best["matrix"], best["diagnostics"], cv_report
+
+
+# Backwards-compatible alias
+sparse_cv = sparse_quantile_sweep
 
 
 def residual_bucket(buyers: pd.Series, sellers: pd.Series) -> float:

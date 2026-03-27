@@ -8,6 +8,7 @@ import pytest
 from tsyparty.infer.pipeline import (
     InferenceConfig,
     InferenceResult,
+    SkipRecord,
     build_support_matrix,
     prepare_quarters,
     run_quarter,
@@ -69,8 +70,8 @@ def test_prepare_quarters_excludes_meta_sectors():
     assert "fed" not in changes["sector"].values
 
 
-def test_run_quarter_returns_none_for_flat_data():
-    """A quarter where everyone has zero net flow should be skipped."""
+def test_run_quarter_returns_skip_for_flat_data():
+    """A quarter where everyone has zero net flow should return SkipRecord."""
     config = InferenceConfig()
     q_changes = pd.DataFrame({
         "sector": ["banks", "dealers"],
@@ -80,7 +81,7 @@ def test_run_quarter_returns_none_for_flat_data():
         "holdings": [100.0, 100.0],
     })
     result = run_quarter(q_changes, pd.Timestamp("2001-03-30"), config)
-    assert result is None
+    assert isinstance(result, SkipRecord)
 
 
 def test_run_quarter_produces_valid_result():
@@ -254,3 +255,54 @@ def test_structural_zeros_in_inference():
     if result.quarter_diagnostics:
         converged = sum(1 for d in result.quarter_diagnostics if d["dense_converged"])
         assert converged == len(result.quarter_diagnostics)
+
+
+def test_run_inference_rejects_bad_config():
+    """run_inference should reject invalid config at entry."""
+    panel = _make_panel(12)
+    with pytest.raises(ValueError, match="max_iter"):
+        run_inference(panel, InferenceConfig(max_iter=0))
+
+
+def test_skipped_quarter_has_skip_record():
+    """Quarters with near-zero flow should produce a SkipRecord."""
+    config = InferenceConfig()
+    q_changes = pd.DataFrame({
+        "sector": ["banks", "dealers"],
+        "delta_holdings": [0.0, 0.0],
+        "date": [pd.Timestamp("2001-03-30")] * 2,
+        "instrument": ["treasury"] * 2,
+        "holdings": [100.0, 100.0],
+    })
+    result = run_quarter(q_changes, pd.Timestamp("2001-03-30"), config)
+    assert isinstance(result, SkipRecord)
+    assert result.status == "skipped"
+    assert result.reason == "near_zero_net_flow"
+
+
+def test_skip_records_in_inference_result():
+    """InferenceResult should contain skip_records for skipped quarters."""
+    panel = _make_panel(12)
+    result = run_inference(panel, InferenceConfig())
+    # Some quarters will be skipped (first quarter has NaN deltas)
+    assert isinstance(result.skip_records, list)
+    assert result.quarters_skipped == len(result.skip_records)
+    for rec in result.skip_records:
+        assert isinstance(rec, SkipRecord)
+        assert rec.status in ("skipped", "error")
+        assert rec.reason is not None
+
+
+def test_write_outputs_writes_skip_records(tmp_path):
+    """write_outputs should write skip_records.json when skips exist."""
+    panel = _make_panel(12)
+    result = run_inference(panel)
+    paths = write_outputs(result, tmp_path / "out")
+    if result.skip_records:
+        skip_path = tmp_path / "out" / "skip_records.json"
+        assert skip_path.exists()
+        import json
+        with open(skip_path) as f:
+            records = json.load(f)
+        assert len(records) == len(result.skip_records)
+        assert all("reason" in r for r in records)

@@ -475,14 +475,17 @@ def cmd_infer(args: argparse.Namespace) -> None:
     # Run validation checks against available data
     fwtw = _read_optional_csv(interim / "fwtw_holdings.csv")
     tic_foreign = _read_optional_csv(interim / "tic_foreign_holdings.csv")
-    auction = _read_optional_csv(interim / "bills_allotments.csv")
-    if auction is None:
-        auction = _read_optional_csv(interim / "nominal_coupons_allotments.csv")
+    bills = _read_optional_csv(interim / "bills_allotments.csv")
+    coupons = _read_optional_csv(interim / "nominal_coupons_allotments.csv")
+    auction = None
+    if bills is not None or coupons is not None:
+        from tsyparty.baseline.primary_market import build_primary_allocation
+        auction = build_primary_allocation(bills_allotments=bills, coupon_allotments=coupons)
     result.validation_results = validate_inference(
         result, config, fwtw=fwtw, auction_allotments=auction, tic_foreign=tic_foreign,
     )
 
-    paths = write_outputs(result, out)
+    paths = write_outputs(result, out, config=config)
 
     print(f"Counterparty inference: {len(result.flows)} flow entries across {result.quarters_processed} quarters ({result.quarters_skipped} skipped)")
 
@@ -576,7 +579,7 @@ def cmd_similarity(args: argparse.Namespace) -> None:
     derived = Path(args.derived)
 
     panel = pd.read_csv(panel_path, parse_dates=["date"])
-    config = SimilarityConfig.from_sectors_yml()
+    config = SimilarityConfig.from_behavior_yml()
 
     # Load context factors if available (SOMA quarterly delta, etc.)
     context = None
@@ -590,8 +593,8 @@ def cmd_similarity(args: argparse.Namespace) -> None:
         print("Not enough data for similarity analysis.")
         return
 
-    paths = write_outputs(result, out)
-    chart_paths = write_charts(result, out)
+    paths = write_outputs(result, out, config=config)
+    chart_paths = write_charts(result, out, config=config)
 
     print(f"Distance matrix: {result.distance_matrix.shape[0]}x{result.distance_matrix.shape[1]} sectors")
     for target, nearest in result.closest.items():

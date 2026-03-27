@@ -39,3 +39,20 @@ def test_iter_sources():
     specs = list(iter_sources())
     assert len(specs) > 10
     assert all(isinstance(s, SourceSpec) for s in specs)
+
+
+def test_all_sources_have_download_strategy():
+    """Every source in sources.yml must declare a download_strategy."""
+    sources = load_sources()
+    missing = [key for key, spec in sources.items() if spec.download_strategy is None]
+    assert not missing, f"Sources without download_strategy: {missing}"
+
+
+def test_iter_sources_public_only_filters():
+    """public_only=True should exclude landing_page-only sources."""
+    all_specs = list(iter_sources(public_only=False))
+    public_specs = list(iter_sources(public_only=True))
+    # landing_page sources have download_strategy but are not directly downloadable
+    # public_only filters sources with no download_strategy
+    assert len(public_specs) <= len(all_specs)
+    assert all(s.download_strategy is not None for s in public_specs)

@@ -29,6 +29,10 @@ def validate_weekly_series(df: pd.DataFrame) -> None:
         raise ValueError(f"Missing required columns: {sorted(missing)}")
     if not pd.api.types.is_datetime64_any_dtype(df["date"]):
         raise ValueError("'date' column must be datetime64")
+    if not pd.api.types.is_numeric_dtype(df["value"]):
+        raise ValueError("'value' column must be numeric")
+    if df["series_id"].isna().any():
+        raise ValueError("'series_id' column must not contain null values")
 
 
 def quarter_end_aggregate(
@@ -49,11 +53,12 @@ def quarter_end_aggregate(
     out["quarter"] = out["date"].dt.to_period("Q").dt.to_timestamp("Q")
     if agg == "last":
         result = out.sort_values("date").groupby(["quarter", "series_id"], as_index=False).last()
-    else:
+    elif agg == "mean":
         result = out.groupby(["quarter", "series_id"], as_index=False).agg(
             {"value": "mean", "frequency": "first", "units": "first", "source_key": "first"}
         )
-        result["date"] = result["quarter"]
+    else:
+        raise ValueError(f"Unsupported agg method: {agg!r}. Use 'last' or 'mean'.")
     result["date"] = result["quarter"]
     result["frequency"] = "quarterly"
     return result.drop(columns=["quarter"])

@@ -42,7 +42,6 @@ def load_sources() -> dict[str, SourceSpec]:
 def iter_sources(public_only: bool = False) -> Iterable[SourceSpec]:
     sources = load_sources()
     for spec in sources.values():
-        if public_only:
-            yield spec
-        else:
-            yield spec
+        if public_only and spec.download_strategy is None:
+            continue
+        yield spec

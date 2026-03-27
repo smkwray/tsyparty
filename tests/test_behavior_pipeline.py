@@ -134,11 +134,46 @@ def test_run_similarity_returns_none_for_insufficient_data():
     assert result is None
 
 
+def test_from_dict_empty_returns_list_targets():
+    """from_dict({}) must return a real list, not a member descriptor."""
+    config = SimilarityConfig.from_dict({})
+    assert isinstance(config.targets, list)
+    assert "banks" in config.targets
+    assert isinstance(config.exclude_sectors, list)
+
+
+def test_from_dict_passes_exclude_sectors():
+    """from_dict should propagate exclude_sectors."""
+    config = SimilarityConfig.from_dict({"exclude_sectors": ["_total"]})
+    assert config.exclude_sectors == ["_total"]
+
+
+def test_from_dict_overrides_targets():
+    """from_dict should accept custom targets."""
+    config = SimilarityConfig.from_dict({"targets": ["banks"]})
+    assert config.targets == ["banks"]
+
+
 def test_config_from_sectors_yml():
     """from_sectors_yml should load targets from configs/sectors.yml."""
     config = SimilarityConfig.from_sectors_yml()
     assert "banks" in config.targets
     assert len(config.targets) >= 2
+
+
+def test_from_behavior_yml_loads_config():
+    """from_behavior_yml should load behavior.yml params and sectors.yml targets."""
+    config = SimilarityConfig.from_behavior_yml()
+    assert "banks" in config.targets
+    assert config.distance_metric == "cosine"
+    assert config.rolling_window == 20
+    assert "net_public_supply" in config.x_cols
+
+
+def test_exclude_sectors_includes_fed():
+    """Default exclude_sectors should include fed to match inference pipeline."""
+    config = SimilarityConfig()
+    assert "fed" in config.exclude_sectors
 
 
 def test_run_similarity_with_context():

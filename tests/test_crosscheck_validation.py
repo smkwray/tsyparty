@@ -69,3 +69,27 @@ def test_compare_foreign_inference_to_tic():
 def test_compare_foreign_inference_to_tic_empty():
     result = compare_foreign_inference_to_tic(pd.DataFrame(), pd.DataFrame())
     assert result.empty
+
+
+def test_compare_foreign_inference_to_tic_with_private():
+    """Foreign inference validation should sum both official and private flows."""
+    flows = pd.DataFrame({
+        "date": pd.to_datetime(["2024-03-31"] * 4 + ["2024-06-30"] * 4),
+        "seller": ["dealers", "insurers", "dealers", "insurers"] * 2,
+        "buyer": ["foreigners_official", "foreigners_official", "foreigners_private", "foreigners_private"] * 2,
+        "amount": [30.0, 20.0, 10.0, 5.0, 35.0, 25.0, 12.0, 8.0],
+        "method": ["dense"] * 8,
+        "converged": [True] * 8,
+    })
+    tic = pd.DataFrame({
+        "date": pd.to_datetime(["2024-03-31", "2024-06-30"]),
+        "tic_foreign_treasury": [500.0, 570.0],
+    })
+    result = compare_foreign_inference_to_tic(flows, tic)
+    assert not result.empty
+    # Net foreign buying for Q2 = (35+25+12+8) - 0 sellers = 80
+    # But no foreign sellers in this data, so net = total buying
+    row = result[result["date"] == pd.Timestamp("2024-06-30")]
+    assert len(row) == 1
+    # inferred_foreign_net should include both official + private buying
+    assert row.iloc[0]["inferred_foreign_net"] == 80.0

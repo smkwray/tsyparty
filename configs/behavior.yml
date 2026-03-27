@@ -2,15 +2,16 @@ version: 1
 rolling_similarity:
   window_quarters: 20
   minimum_observations: 20
+  min_date: "2000-01-01"
   x_cols:
     - net_public_supply
     - delta_soma
 
 distance_metric:
   default: cosine
-  alternatives:
-    - euclidean
 
+# Targets are loaded from sectors.yml analysis_groups.
+# target_profiles below is documentation only.
 target_profiles:
   bank_like:
     - banks

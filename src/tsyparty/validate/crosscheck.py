@@ -57,10 +57,11 @@ def run_crosschecks(
             results.append(("money_market_funds", check["diff_pct"].mean(), check["diff_pct"].abs().max(), len(check)))
 
     if tic_foreign is not None and not tic_foreign.empty:
-        panel_foreign = panel[panel["sector"] == "foreigners_official"].groupby("date", as_index=False)["holdings"].sum()
+        foreign_sectors = ["foreigners_official", "foreigners_private"]
+        panel_foreign = panel[panel["sector"].isin(foreign_sectors)].groupby("date", as_index=False)["holdings"].sum()
         check = crosscheck_sector(panel_foreign, tic_foreign, "holdings", "tic_foreign_treasury")
         if not check.empty:
-            results.append(("foreigners_official", check["diff_pct"].mean(), check["diff_pct"].abs().max(), len(check)))
+            results.append(("foreigners_total", check["diff_pct"].mean(), check["diff_pct"].abs().max(), len(check)))
 
     if not results:
         return pd.DataFrame(columns=["sector", "mean_diff_pct", "max_abs_diff_pct", "quarters"])
@@ -162,11 +163,13 @@ def compare_foreign_inference_to_tic(
     if dense.empty:
         dense = flows
 
-    # Net foreign buying = sum of flows where foreigners_official is buyer
-    # minus sum where foreigners_official is seller
-    foreign_buying = dense[dense["buyer"] == "foreigners_official"].groupby("date")["amount"].sum()
-    foreign_selling = dense[dense["seller"] == "foreigners_official"].groupby("date")["amount"].sum()
-    foreign_net = (foreign_buying - foreign_selling).reset_index()
+    # Net foreign buying = sum of flows where any foreign sector is buyer
+    # minus sum where any foreign sector is seller
+    foreign_sectors = ["foreigners_official", "foreigners_private"]
+    foreign_buying = dense[dense["buyer"].isin(foreign_sectors)].groupby("date")["amount"].sum()
+    foreign_selling = dense[dense["seller"].isin(foreign_sectors)].groupby("date")["amount"].sum()
+    all_dates = foreign_buying.index.union(foreign_selling.index)
+    foreign_net = (foreign_buying.reindex(all_dates, fill_value=0) - foreign_selling.reindex(all_dates, fill_value=0)).reset_index()
     foreign_net.columns = ["date", "inferred_foreign_net"]
 
     # TIC holding changes

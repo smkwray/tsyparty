@@ -32,16 +32,23 @@ class SimilarityConfig:
     rolling_window: int = 20
     min_date: str = "2000-01-01"
     exclude_sectors: list[str] = field(
-        default_factory=lambda: ["_total", "_discrepancy"]
+        default_factory=lambda: ["_total", "_discrepancy", "fed"]
+    )
+    distance_metric: str = "cosine"
+    x_cols: list[str] = field(
+        default_factory=lambda: ["net_public_supply", "delta_soma"]
     )
 
     @classmethod
     def from_dict(cls, cfg: dict[str, Any]) -> SimilarityConfig:
         return cls(
-            targets=cfg.get("targets", cls.targets),
+            targets=cfg.get("targets", ["banks", "foreigners_official", "money_market_funds"]),
             top_n=cfg.get("top_n", 5),
             rolling_window=cfg.get("rolling_window", 20),
             min_date=cfg.get("min_date", "2000-01-01"),
+            exclude_sectors=cfg.get("exclude_sectors", ["_total", "_discrepancy", "fed"]),
+            distance_metric=cfg.get("distance_metric", "cosine"),
+            x_cols=cfg.get("x_cols", ["net_public_supply", "delta_soma"]),
         )
 
     @classmethod
@@ -61,9 +68,36 @@ class SimilarityConfig:
                 targets.append("money_market_funds")
             if not targets:
                 targets = ["banks", "foreigners_official", "money_market_funds"]
-        except Exception:
+        except (FileNotFoundError, KeyError, TypeError):
+            import logging
+            logging.warning("Failed to load targets from configs/sectors.yml, using defaults")
             targets = ["banks", "foreigners_official", "money_market_funds"]
         return cls(targets=targets, **overrides)
+
+    @classmethod
+    def from_behavior_yml(cls, **overrides) -> SimilarityConfig:
+        """Load from behavior.yml for analysis params, sectors.yml for targets."""
+        # Get targets from sectors.yml
+        base = cls.from_sectors_yml()
+        targets = base.targets
+
+        # Get behavior params from behavior.yml
+        try:
+            from tsyparty.config import load_yaml
+            bcfg = load_yaml("configs/behavior.yml")
+            rolling = bcfg.get("rolling_similarity", {})
+            distance = bcfg.get("distance_metric", {})
+        except (FileNotFoundError, KeyError):
+            return cls(targets=targets, **overrides)
+
+        return cls(
+            targets=targets,
+            rolling_window=rolling.get("window_quarters", 20),
+            min_date=rolling.get("min_date", "2000-01-01"),
+            distance_metric=distance.get("default", "cosine") if isinstance(distance, dict) else "cosine",
+            x_cols=rolling.get("x_cols", ["net_public_supply", "delta_soma"]),
+            **overrides,
+        )
 
 
 @dataclass(slots=True)
@@ -139,6 +173,8 @@ def run_similarity(
     if features.empty or len(features) < 3:
         return None
 
+    if config.distance_metric != "cosine":
+        raise ValueError(f"Unsupported distance metric: {config.distance_metric!r}. Only 'cosine' is implemented.")
     dist = cosine_distance_matrix(features)
 
     closest_map: dict[str, pd.Series] = {}
@@ -176,7 +212,7 @@ def run_similarity(
     # Rolling absorption betas (when context factors are available)
     absorption_betas = None
     if context is not None and not context.empty:
-        x_cols = [c for c in context.columns if c != "date" and c in ("net_public_supply", "delta_soma")]
+        x_cols = [c for c in context.columns if c != "date" and c in config.x_cols]
         if x_cols:
             # Build long-form frame for rolling_absorption_beta
             sector_changes = changes.groupby(["date", "sector"], as_index=False)["delta_holdings"].sum()
@@ -202,8 +238,15 @@ def run_similarity(
     )
 
 
-def write_outputs(result: SimilarityResult, out_dir: Path) -> dict[str, Path]:
-    """Write similarity artifacts to disk. Returns paths written."""
+def write_outputs(result: SimilarityResult, out_dir: Path, config: SimilarityConfig | None = None) -> dict[str, Path]:
+    """Write similarity artifacts to disk. Returns paths written.
+
+    Always writes all artifact files (empty if no data) so consumers
+    can distinguish 'no data' from 'pipeline did not run'.
+    """
+    import datetime
+    import json
+
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
 
@@ -220,20 +263,47 @@ def write_outputs(result: SimilarityResult, out_dir: Path) -> dict[str, Path]:
         series.to_csv(p, header=True)
         paths[f"closest_{target}"] = p
 
+    # Always write rolling correlations (empty CSV if None)
+    corr_path = out_dir / "rolling_correlations.csv"
     if result.rolling_correlations is not None:
-        corr_path = out_dir / "rolling_correlations.csv"
         result.rolling_correlations.to_csv(corr_path)
-        paths["rolling_correlations"] = corr_path
+    else:
+        pd.DataFrame().to_csv(corr_path)
+    paths["rolling_correlations"] = corr_path
 
+    # Always write absorption betas (empty CSV if None)
+    beta_path = out_dir / "rolling_absorption_betas.csv"
     if result.absorption_betas is not None and not result.absorption_betas.empty:
-        beta_path = out_dir / "rolling_absorption_betas.csv"
         result.absorption_betas.to_csv(beta_path, index=False)
-        paths["absorption_betas"] = beta_path
+    else:
+        pd.DataFrame(columns=["date", "sector"]).to_csv(beta_path, index=False)
+    paths["absorption_betas"] = beta_path
+
+    # Manifest
+    manifest = {
+        "schema_version": 1,
+        "pipeline": "similarity",
+        "build_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "n_sectors": int(result.distance_matrix.shape[0]),
+        "targets": list(result.closest.keys()),
+        "files_written": sorted(p.name for p in paths.values()),
+    }
+    if config is not None:
+        manifest["config"] = {
+            "distance_metric": config.distance_metric,
+            "rolling_window": config.rolling_window,
+            "x_cols": config.x_cols,
+            "exclude_sectors": config.exclude_sectors,
+        }
+    manifest_path = out_dir / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+    paths["manifest"] = manifest_path
 
     return paths
 
 
-def write_charts(result: SimilarityResult, out_dir: Path) -> dict[str, Path]:
+def write_charts(result: SimilarityResult, out_dir: Path, config: SimilarityConfig | None = None) -> dict[str, Path]:
     """Write similarity charts. Separated from write_outputs for testability."""
     import matplotlib
     matplotlib.use("Agg")
@@ -242,9 +312,11 @@ def write_charts(result: SimilarityResult, out_dir: Path) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
 
+    metric = config.distance_metric if config else "cosine"
+
     # Distance heatmap
     heatmap_path = out_dir / "sector_distance_heatmap.png"
-    save_heatmap(result.distance_matrix, "Sector Behavior Distance (cosine)", heatmap_path, label="Distance")
+    save_heatmap(result.distance_matrix, f"Sector Behavior Distance ({metric})", heatmap_path, label="Distance")
     paths["heatmap"] = heatmap_path
 
     # Rolling correlation charts
