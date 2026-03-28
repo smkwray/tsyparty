@@ -45,3 +45,25 @@ function sectorColor(sector) {
 function sectorLabel(sector) {
   return SECTOR_LABELS[sector] || sector.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
+
+/* Pipeline-aware sector label: on Core similarity, foreigners_official is
+   actually the combined foreign bucket before TIC enrichment splits it. */
+function pipelineSectorLabel(sector, pipeline) {
+  if (pipeline === "similarity" && sector === "foreigners_official") {
+    return "Foreign (Combined)";
+  }
+  return sectorLabel(sector);
+}
+
+/* Human-readable labels for internal column names */
+const COLUMN_LABELS = {
+  delta_holdings:     "Quarterly Holding Change",
+  delta_soma:         "SOMA Change",
+  net_public_supply:  "Net Public Supply",
+  beta_delta_soma:    "Beta (SOMA Change)",
+  beta_net_public_supply: "Beta (Net Public Supply)",
+};
+
+function columnLabel(col) {
+  return COLUMN_LABELS[col] || col.replace(/^beta_/, "Beta: ").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}

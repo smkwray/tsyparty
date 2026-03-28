@@ -144,14 +144,8 @@
       return manifests[activePipeline];
     }
 
-    // In the Core dataset, foreigners_official is actually all foreign holders
-    // combined (official + private). Override the label so users aren't confused
-    // when comparing against the Extended dataset where they're split.
     function activeSectorLabel(sector) {
-      if (activePipeline === "similarity" && sector === "foreigners_official") {
-        return "Foreign (Combined)";
-      }
-      return sectorLabel(sector);
+      return pipelineSectorLabel(sector, activePipeline);
     }
 
     function pipelineLabel(pipeline) {
@@ -198,15 +192,25 @@
 
       const manifest = activeManifest();
       const badge = document.getElementById("dataset-badge");
-      badge.textContent = pipelineLabel(activePipeline);
-      badge.className = "badge badge-ok";
+      const status = manifest?.status;
+      if (status === "ok") {
+        badge.textContent = pipelineLabel(activePipeline);
+        badge.className = "badge badge-ok";
+      } else if (status === "no_data") {
+        badge.textContent = "No Data";
+        badge.className = "badge badge-no-data";
+      } else {
+        badge.textContent = "Unavailable";
+        badge.className = "badge badge-no-data";
+      }
 
       const dateRange = manifest?.date_range || {};
       const sectors = manifest?.n_sectors ?? "—";
       const metric = manifest?.headline_behavior_metric ? metricLabel(manifest.headline_behavior_metric) : "—";
       const rangeLabel = dateRange.min && dateRange.max ? `${fmtDate(dateRange.min)} – ${fmtDate(dateRange.max)}` : "—";
-      document.getElementById("dataset-note").textContent =
-        `${pipelineLabel(activePipeline)} dataset · ${sectors} sectors · ${rangeLabel} · ${metric}`;
+      document.getElementById("dataset-note").textContent = status === "ok"
+        ? `${pipelineLabel(activePipeline)} dataset · ${sectors} sectors · ${rangeLabel} · ${metric}`
+        : `${pipelineLabel(activePipeline)} dataset · ${status === "no_data" ? "No data available" : "Unavailable"}`;
     }
 
     if (!activeManifest() || activeManifest().status === "no_data") {
@@ -286,7 +290,7 @@
         });
         document.getElementById("heatmap-chart").replaceChildren(chart);
       } catch (e) {
-        document.getElementById("heatmap-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load distance heatmap: ${e.message}</div></div>`;
+        document.getElementById("heatmap-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load distance heatmap: ${escapeHTML(e.message)}</div></div>`;
       }
     }
 
@@ -350,7 +354,7 @@
 
             const card = document.createElement("div");
             card.className = "chart-container";
-            card.innerHTML = `<div class="chart-title">Closest to ${activeSectorLabel(target)}</div><div class="chart-subtitle">Top 5 by cosine distance</div>`;
+            card.innerHTML = `<div class="chart-title">Closest to ${escapeHTML(activeSectorLabel(target))}</div><div class="chart-subtitle">Top 5 by cosine distance</div>`;
             const chartArea = document.createElement("div");
             chartArea.className = "chart-area";
             const chart = Plot.plot({
@@ -385,7 +389,7 @@
         renderPills();
         renderCharts();
       } catch (e) {
-        document.getElementById("nn-charts").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load distance data: ${e.message}</div></div>`;
+        document.getElementById("nn-charts").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load distance data: ${escapeHTML(e.message)}</div></div>`;
       }
     }
 
@@ -398,14 +402,14 @@
         let html = '<table class="data-table"><thead><tr><th>Sector</th>';
         for (const col of featureCols) {
           const label = col.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          html += `<th class="num">${label}</th>`;
+          html += `<th class="num">${escapeHTML(label)}</th>`;
         }
         html += "</tr></thead><tbody>";
         const sorted = [...raw].sort((a, b) => activeSectorLabel(a[indexCol]).localeCompare(activeSectorLabel(b[indexCol])));
         for (const row of sorted) {
           const sector = row[indexCol];
           html += '<tr>';
-          html += `<td style="white-space:nowrap"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${sectorColor(sector)};margin-right:8px;vertical-align:middle"></span>${activeSectorLabel(sector)}</td>`;
+          html += `<td style="white-space:nowrap"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${escapeHTML(sectorColor(sector))};margin-right:8px;vertical-align:middle"></span>${escapeHTML(activeSectorLabel(sector))}</td>`;
           for (const col of featureCols) {
             const value = row[col];
             if (col.includes("share")) {
@@ -419,7 +423,7 @@
         html += "</tbody></table>";
         document.getElementById("features-table").innerHTML = html;
       } catch (e) {
-        document.getElementById("features-table").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load sector features: ${e.message}</div></div>`;
+        document.getElementById("features-table").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load sector features: ${escapeHTML(e.message)}</div></div>`;
       }
     }
 
@@ -582,7 +586,7 @@
         renderPills();
         renderChart();
       } catch (e) {
-        document.getElementById("comove-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load factor-adjusted comovement: ${e.message}</div></div>`;
+        document.getElementById("comove-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load factor-adjusted comovement: ${escapeHTML(e.message)}</div></div>`;
       }
     }
 
@@ -674,7 +678,7 @@
         renderPills();
         renderChart();
       } catch (e) {
-        document.getElementById("raw-corr-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load raw correlations: ${e.message}</div></div>`;
+        document.getElementById("raw-corr-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load raw correlations: ${escapeHTML(e.message)}</div></div>`;
       }
     }
 
@@ -708,7 +712,7 @@
             marginBottom: 40,
             marginRight: 20,
             x: { label: null, type: "time" },
-            y: { label: `Beta (${activeBeta.replace("beta_", "")})`, grid: true },
+            y: { label: columnLabel(activeBeta), grid: true },
             color: {
               domain: visibleSectors.map((sector) => activeSectorLabel(sector)),
               range: visibleSectors.map((sector) => sectorColor(sector)),
@@ -758,7 +762,7 @@
 
         renderChart();
       } catch (e) {
-        document.getElementById("beta-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load absorption betas: ${e.message}</div></div>`;
+        document.getElementById("beta-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load absorption betas: ${escapeHTML(e.message)}</div></div>`;
       }
     }
 

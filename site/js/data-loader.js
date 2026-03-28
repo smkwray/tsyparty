@@ -129,6 +129,11 @@ function fmtDate(d) {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short" });
 }
 
+function escapeHTML(str) {
+  if (str == null) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function metricLabel(metric) {
   const labels = {
     "partial_pearson": "Partial Correlation",

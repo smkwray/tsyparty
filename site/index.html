@@ -148,7 +148,7 @@
                     <tr><td>Date Range</td><td class="num" id="sim-range">—</td></tr>
                     <tr><td>Sectors</td><td class="num" id="sim-sectors">—</td></tr>
                     <tr><td>Targets Found</td><td class="num" id="sim-targets">—</td></tr>
-                    <tr><td>Distance Metric</td><td class="num" id="sim-metric">—</td></tr>
+                    <tr><td>Behavior Metric</td><td class="num" id="sim-metric">—</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -200,7 +200,7 @@
       const dr = simManifest.date_range || {};
       document.getElementById("sim-range").textContent = dr.min && dr.max ? `${fmtDate(dr.min)} – ${fmtDate(dr.max)}` : "—";
       document.getElementById("sim-sectors").textContent = simManifest.n_sectors;
-      document.getElementById("sim-targets").textContent = (simManifest.targets_found || []).map(t => sectorLabel(t)).join(", ");
+      document.getElementById("sim-targets").textContent = (simManifest.targets_found || []).map(t => pipelineSectorLabel(t, preferredSim.pipeline)).join(", ");
       document.getElementById("sim-metric").textContent = metricLabel(simManifest.headline_behavior_metric || simManifest.config?.distance_metric || "—");
 
       document.getElementById("m-sectors").textContent = simManifest.n_sectors;
@@ -275,7 +275,7 @@
       });
       document.getElementById("holdings-chart").replaceChildren(chart);
     } catch (e) {
-      document.getElementById("holdings-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load holdings: ${e.message}</div></div>`;
+      document.getElementById("holdings-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load holdings: ${escapeHTML(e.message)}</div></div>`;
     }
 
     // Latest quarter shares (bar chart)
@@ -312,7 +312,7 @@
       });
       document.getElementById("shares-chart").replaceChildren(chart);
     } catch (e) {
-      document.getElementById("shares-chart").innerHTML = `<div class="empty-state"><div class="empty-text">${e.message}</div></div>`;
+      document.getElementById("shares-chart").innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHTML(e.message)}</div></div>`;
     }
 
     // Latest margins (buyers vs sellers)
@@ -329,7 +329,7 @@
           label: sectorLabel(r.sector),
           delta: r.delta_holdings || 0,
         }))
-        .filter(d => d.delta !== 0)
+        .filter(d => d.delta != null && !isNaN(d.delta))
         .sort((a, b) => b.delta - a.delta);
 
       const chart = Plot.plot({
@@ -353,7 +353,7 @@
       });
       document.getElementById("margins-chart").replaceChildren(chart);
     } catch (e) {
-      document.getElementById("margins-chart").innerHTML = `<div class="empty-state"><div class="empty-text">${e.message}</div></div>`;
+      document.getElementById("margins-chart").innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHTML(e.message)}</div></div>`;
     }
   })();
   </script>

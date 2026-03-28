@@ -439,7 +439,7 @@
 
     } catch (e) {
       document.getElementById("matrix-chart").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load counterparty flows: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load counterparty flows: ${escapeHTML(e.message)}</div></div>`;
     }
 
     /* ---------------------------------------------------------------
@@ -504,7 +504,7 @@
       }
     } catch (e) {
       document.getElementById("diagnostics-body").innerHTML =
-        `<tr><td colspan="8"><div class="empty-state"><div class="empty-text">Could not load diagnostics: ${e.message}</div></div></td></tr>`;
+        `<tr><td colspan="8"><div class="empty-state"><div class="empty-text">Could not load diagnostics: ${escapeHTML(e.message)}</div></div></td></tr>`;
     }
 
     /* ---------------------------------------------------------------

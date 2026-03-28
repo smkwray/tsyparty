@@ -71,7 +71,7 @@
         <h2 class="section-title">Quarterly Holding Changes</h2>
         <div class="chart-container">
           <div class="chart-title">Net Holding Changes by Sector</div>
-          <div class="chart-subtitle">Heatmap of quarterly delta_holdings — red = decreases, blue = increases (last ~40 quarters)</div>
+          <div class="chart-subtitle">Heatmap of quarterly holding change — red = decreases, blue = increases (last ~40 quarters)</div>
           <div class="chart-area" id="heatmap-chart">
             <div class="loading">Loading holding changes data...</div>
           </div>
@@ -229,7 +229,7 @@
       document.getElementById("holdings-evolution-chart").replaceChildren(chart);
     } catch (e) {
       document.getElementById("holdings-evolution-chart").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load holdings evolution: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load holdings evolution: ${escapeHTML(e.message)}</div></div>`;
     }
 
     /* ========================================================
@@ -325,7 +325,7 @@
       document.getElementById("heatmap-chart").replaceChildren(chart);
     } catch (e) {
       document.getElementById("heatmap-chart").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load holding changes: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load holding changes: ${escapeHTML(e.message)}</div></div>`;
     }
 
     /* ========================================================
@@ -393,7 +393,7 @@
       document.getElementById("primary-allocation-chart").replaceChildren(chart);
     } catch (e) {
       document.getElementById("primary-allocation-chart").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load primary allocation: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load primary allocation: ${escapeHTML(e.message)}</div></div>`;
     }
 
     // 3b: Summary table
@@ -416,10 +416,10 @@
       const sorted = [...summary].sort((a, b) => (+b.mean_share || 0) - (+a.mean_share || 0));
       for (const row of sorted) {
         tableHTML += `<tr>
-          <td>${sectorLabel(row.buyer_class) || "—"}</td>
-          <td class="num">${pct(+row.mean_share || 0)}</td>
-          <td class="num">${fmt(+row.mean_amount || 0, 1)}</td>
-          <td class="num">${row.quarters != null ? row.quarters : "—"}</td>
+          <td>${escapeHTML(sectorLabel(row.buyer_class) || "—")}</td>
+          <td class="num">${escapeHTML(pct(+row.mean_share || 0))}</td>
+          <td class="num">${escapeHTML(fmt(+row.mean_amount || 0, 1))}</td>
+          <td class="num">${row.quarters != null ? escapeHTML(row.quarters) : "—"}</td>
         </tr>`;
       }
 
@@ -427,7 +427,7 @@
       document.getElementById("primary-summary-table").innerHTML = tableHTML;
     } catch (e) {
       document.getElementById("primary-summary-table").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load allocation summary: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load allocation summary: ${escapeHTML(e.message)}</div></div>`;
     }
 
     /* ========================================================
@@ -531,9 +531,9 @@
       document.getElementById("gap-chart").replaceChildren(chart2);
     } catch (e) {
       document.getElementById("reconciliation-chart").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load reconciliation data: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load reconciliation data: ${escapeHTML(e.message)}</div></div>`;
       document.getElementById("gap-chart").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load gap data: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load gap data: ${escapeHTML(e.message)}</div></div>`;
     }
 
   })();

@@ -497,8 +497,8 @@
               <div><span class="config-key">rolling_window</span><span class="config-sep">:</span><span class="config-val val-num">20 quarters</span></div>
               <div><span class="config-key">minimum_observations</span><span class="config-sep">:</span><span class="config-val val-num">20</span></div>
               <div><span class="config-key">min_date</span><span class="config-sep">:</span><span class="config-val val-str">2000-01-01</span></div>
-              <div><span class="config-key">x_cols</span><span class="config-sep">:</span><span class="config-val val-str">net_public_supply, delta_soma</span></div>
-              <div><span class="config-key">targets</span><span class="config-sep">:</span><span class="config-val val-str">banks, foreigners_official, money_market_funds</span></div>
+              <div><span class="config-key">control_factors</span><span class="config-sep">:</span><span class="config-val val-str">Net Public Supply, SOMA Change</span></div>
+              <div><span class="config-key">target_sectors</span><span class="config-sep">:</span><span class="config-val val-str">Banks, Foreign Official, Money Market Funds</span></div>
             </div>
           </div>
         </div>
@@ -512,97 +512,10 @@
         </div>
       </div>
 
-      <!-- 7. Sector Definitions -->
+      <!-- 7. Sector Definitions (generated from shared label/color maps) -->
       <div class="section">
         <h2 class="section-title">Sector Definitions</h2>
-        <div class="card">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Sector</th>
-                <th>Canonical Key</th>
-                <th>Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><span class="sector-dot" style="background:#f85149;"></span>Treasury</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">treasury</td>
-                <td><span class="role-badge role-issuer">Issuer</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#f85149;"></span>Federal Reserve</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">fed</td>
-                <td><span class="role-badge role-public">Public Sector Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#58a6ff;"></span>Banks</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">banks</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#f97583;"></span>Dealers</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">dealers</td>
-                <td><span class="role-badge role-intermediary">Intermediary</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#3fb950;"></span>Money Market Funds</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">money_market_funds</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#bc8cff;"></span>Mutual Funds & ETFs</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">mutual_funds_etfs</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#b392f0;"></span>Hedge Funds</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">hedge_funds</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#79c0ff;"></span>Insurers</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">insurers</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#56d364;"></span>Pensions</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">pensions</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#8b949e;"></span>Households (Residual)</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">households_residual</td>
-                <td><span class="role-badge role-residual">Private Holder (Residual)</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#e3b341;"></span>Nonfinancial Corporates</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">nonfinancial_corporates</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#db61a2;"></span>State & Local Gov't</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">state_local_governments</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#d29922;"></span>Foreign Official</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">foreigners_official</td>
-                <td><span class="role-badge role-external">External Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#e3b341;"></span>Foreign Private</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">foreigners_private</td>
-                <td><span class="role-badge role-external">External Holder</span></td>
-              </tr>
-              <tr>
-                <td><span class="sector-dot" style="background:#7ee787;"></span>Other Financial</td>
-                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">other_financial</td>
-                <td><span class="role-badge role-private">Private Holder</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <div class="card" id="sector-definitions-card"></div>
       </div>
 
     </main>
@@ -622,29 +535,29 @@
       let html = '<div class="meta-grid">';
       html += `<div class="meta-item">
         <div class="meta-label">Split Method</div>
-        <div class="meta-value">${meta.split_method || "—"}</div>
+        <div class="meta-value">${escapeHTML(meta.split_method || "—")}</div>
       </div>`;
       html += `<div class="meta-item">
         <div class="meta-label">Avg Official Share</div>
-        <div class="meta-value">${meta.avg_official_share != null ? (meta.avg_official_share * 100).toFixed(1) + "%" : "—"}</div>
+        <div class="meta-value">${meta.avg_official_share != null ? escapeHTML((meta.avg_official_share * 100).toFixed(1) + "%") : "—"}</div>
       </div>`;
       html += `<div class="meta-item">
         <div class="meta-label">Quarters with TIC Data</div>
-        <div class="meta-value">${meta.quarters_with_tic_data ?? "—"}</div>
+        <div class="meta-value">${escapeHTML(meta.quarters_with_tic_data ?? "—")}</div>
       </div>`;
       html += `<div class="meta-item">
         <div class="meta-label">Default Official Share</div>
-        <div class="meta-value">${meta.default_official_share != null ? (meta.default_official_share * 100).toFixed(0) + "%" : "—"}</div>
+        <div class="meta-value">${meta.default_official_share != null ? escapeHTML((meta.default_official_share * 100).toFixed(0) + "%") : "—"}</div>
       </div>`;
       html += '</div>';
 
       if (meta.official_holder_countries && meta.official_holder_countries.length > 0) {
         html += '<div class="card">';
         html += '<div class="card-header"><span class="card-title">Official Holder Countries</span>';
-        html += `<span class="badge badge-ok">${meta.official_holder_countries.length} countries</span></div>`;
+        html += `<span class="badge badge-ok">${escapeHTML(meta.official_holder_countries.length)} countries</span></div>`;
         html += '<div class="country-list">';
         for (const country of meta.official_holder_countries) {
-          html += `<span class="country-tag">${country}</span>`;
+          html += `<span class="country-tag">${escapeHTML(country)}</span>`;
         }
         html += '</div></div>';
       }
@@ -652,8 +565,54 @@
       document.getElementById("enrichment-section").innerHTML = html;
     } catch (e) {
       document.getElementById("enrichment-section").innerHTML =
-        `<div class="empty-state"><div class="empty-text">Could not load enrichment metadata: ${e.message}</div></div>`;
+        `<div class="empty-state"><div class="empty-text">Could not load enrichment metadata: ${escapeHTML(e.message)}</div></div>`;
     }
+
+    // Generate sector definitions table from shared label/color maps
+    const SECTOR_ROLES = {
+      fed:                     { role: "Public Sector Holder", css: "role-public" },
+      banks:                   { role: "Private Holder",       css: "role-private" },
+      dealers:                 { role: "Intermediary",         css: "role-intermediary" },
+      money_market_funds:      { role: "Private Holder",       css: "role-private" },
+      mutual_funds_etfs:       { role: "Private Holder",       css: "role-private" },
+      hedge_funds:             { role: "Private Holder",       css: "role-private" },
+      insurers:                { role: "Private Holder",       css: "role-private" },
+      pensions:                { role: "Private Holder",       css: "role-private" },
+      households_residual:     { role: "Private Holder (Residual)", css: "role-residual" },
+      nonfinancial_corporates: { role: "Private Holder",       css: "role-private" },
+      state_local_governments: { role: "Private Holder",       css: "role-private" },
+      foreigners_official:     { role: "External Holder",      css: "role-external" },
+      foreigners_private:      { role: "External Holder",      css: "role-external" },
+      other_financial:         { role: "Private Holder",       css: "role-private" },
+    };
+
+    const sectorOrder = [
+      "fed", "banks", "dealers", "money_market_funds", "mutual_funds_etfs",
+      "hedge_funds", "insurers", "pensions", "households_residual",
+      "nonfinancial_corporates", "state_local_governments",
+      "foreigners_official", "foreigners_private", "other_financial",
+    ];
+
+    let tableHTML = `<table class="data-table">
+      <thead><tr><th>Sector</th><th>Role</th></tr></thead><tbody>`;
+    for (const key of sectorOrder) {
+      const label = sectorLabel(key);
+      const color = sectorColor(key);
+      const info = SECTOR_ROLES[key] || { role: "Unknown", css: "role-private" };
+      tableHTML += `<tr>
+        <td><span class="sector-dot" style="background:${escapeHTML(color)};"></span>${escapeHTML(label)}</td>
+        <td><span class="role-badge ${escapeHTML(info.css)}">${escapeHTML(info.role)}</span></td>
+      </tr>`;
+    }
+    tableHTML += "</tbody></table>";
+    tableHTML += `<details style="margin-top:12px;"><summary style="font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer;">Show canonical keys (developer reference)</summary>`;
+    tableHTML += `<table class="data-table" style="margin-top:8px;"><thead><tr><th>Sector</th><th>Canonical Key</th></tr></thead><tbody>`;
+    for (const key of sectorOrder) {
+      tableHTML += `<tr><td>${escapeHTML(sectorLabel(key))}</td>
+        <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">${escapeHTML(key)}</td></tr>`;
+    }
+    tableHTML += "</tbody></table></details>";
+    document.getElementById("sector-definitions-card").innerHTML = tableHTML;
   })();
   </script>
 </body>
