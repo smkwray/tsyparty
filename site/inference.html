@@ -471,14 +471,14 @@
           const tbody = document.getElementById("diagnostics-body");
           tbody.innerHTML = sorted.map(d => `
             <tr>
-              <td>${fmtDate(d.date)}</td>
-              <td class="num">${d.n_buyers != null ? d.n_buyers : "—"}</td>
-              <td class="num">${d.n_sellers != null ? d.n_sellers : "—"}</td>
-              <td class="num">${d.dense_iterations != null ? d.dense_iterations : "—"}</td>
+              <td>${escapeHTML(fmtDate(d.date))}</td>
+              <td class="num">${d.n_buyers != null ? escapeHTML(d.n_buyers) : "—"}</td>
+              <td class="num">${d.n_sellers != null ? escapeHTML(d.n_sellers) : "—"}</td>
+              <td class="num">${d.dense_iterations != null ? escapeHTML(d.dense_iterations) : "—"}</td>
               <td><span class="${d.dense_converged ? 'status-pass' : 'status-fail'}">${d.dense_converged ? 'Yes' : 'No'}</span></td>
               <td><span class="${d.market_clearing_passes ? 'status-pass' : 'status-fail'}">${d.market_clearing_passes ? 'Pass' : 'Fail'}</span></td>
-              <td class="num">${d.residual_amount != null ? fmt(d.residual_amount, 1) : "—"}</td>
-              <td>${d.residual_side || "—"}</td>
+              <td class="num">${d.residual_amount != null ? escapeHTML(fmt(d.residual_amount, 1)) : "—"}</td>
+              <td>${escapeHTML(d.residual_side || "—")}</td>
             </tr>
           `).join("");
         }
@@ -694,9 +694,9 @@
         const sorted = [...skips].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
         tbody.innerHTML = sorted.map(s => `
           <tr>
-            <td>${fmtDate(s.date)}</td>
-            <td><span class="badge ${s.status === 'skipped' ? 'badge-no-data' : 'badge-error'}">${s.status || "—"}</span></td>
-            <td>${s.reason || s.error_message || "—"}</td>
+            <td>${escapeHTML(fmtDate(s.date))}</td>
+            <td><span class="badge ${s.status === 'skipped' ? 'badge-no-data' : 'badge-error'}">${escapeHTML(s.status || "—")}</span></td>
+            <td>${escapeHTML(s.reason || s.error_message || "—")}</td>
           </tr>
         `).join("");
 

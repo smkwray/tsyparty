@@ -479,26 +479,26 @@
         <h2 class="section-title">Pipeline Configuration</h2>
         <div class="grid-2">
           <div class="card">
-            <div class="config-card-title">Inference Config</div>
+            <div class="config-card-title">Inference Settings</div>
             <div class="config-block">
-              <div><span class="config-key">max_iter</span><span class="config-sep">:</span><span class="config-val val-num">10,000</span></div>
-              <div><span class="config-key">tol</span><span class="config-sep">:</span><span class="config-val val-num">1e-8</span></div>
-              <div><span class="config-key">epsilon</span><span class="config-sep">:</span><span class="config-val val-num">1e-12</span></div>
-              <div><span class="config-key">threshold_quantile</span><span class="config-sep">:</span><span class="config-val val-num">0.65</span></div>
-              <div><span class="config-key">use_structural_zeros</span><span class="config-sep">:</span><span class="config-val val-bool">true</span></div>
-              <div><span class="config-key">require_market_clearing</span><span class="config-sep">:</span><span class="config-val val-bool">true</span></div>
-              <div><span class="config-key">claims_label</span><span class="config-sep">:</span><span class="config-val val-str">likely_net_counterparties</span></div>
+              <div><span class="config-key">Max Iterations</span><span class="config-sep">:</span><span class="config-val val-num">10,000</span></div>
+              <div><span class="config-key">Convergence Tolerance</span><span class="config-sep">:</span><span class="config-val val-num">1e-8</span></div>
+              <div><span class="config-key">Numeric Floor</span><span class="config-sep">:</span><span class="config-val val-num">1e-12</span></div>
+              <div><span class="config-key">Sparsity Quantile</span><span class="config-sep">:</span><span class="config-val val-num">0.65</span></div>
+              <div><span class="config-key">Structural Zeros</span><span class="config-sep">:</span><span class="config-val val-bool">Enabled</span></div>
+              <div><span class="config-key">Market Clearing</span><span class="config-sep">:</span><span class="config-val val-bool">Required</span></div>
+              <div><span class="config-key">Output Framing</span><span class="config-sep">:</span><span class="config-val val-str">Likely Net Counterparties</span></div>
             </div>
           </div>
           <div class="card">
-            <div class="config-card-title">Behavior Config</div>
+            <div class="config-card-title">Behavior Settings</div>
             <div class="config-block">
-              <div><span class="config-key">distance_metric</span><span class="config-sep">:</span><span class="config-val val-str">cosine</span></div>
-              <div><span class="config-key">rolling_window</span><span class="config-sep">:</span><span class="config-val val-num">20 quarters</span></div>
-              <div><span class="config-key">minimum_observations</span><span class="config-sep">:</span><span class="config-val val-num">20</span></div>
-              <div><span class="config-key">min_date</span><span class="config-sep">:</span><span class="config-val val-str">2000-01-01</span></div>
-              <div><span class="config-key">control_factors</span><span class="config-sep">:</span><span class="config-val val-str">Net Public Supply, SOMA Change</span></div>
-              <div><span class="config-key">target_sectors</span><span class="config-sep">:</span><span class="config-val val-str">Banks, Foreign Official, Money Market Funds</span></div>
+              <div><span class="config-key">Similarity Family</span><span class="config-sep">:</span><span class="config-val val-str">Cosine Distance</span></div>
+              <div><span class="config-key">Rolling Window</span><span class="config-sep">:</span><span class="config-val val-num">20 quarters</span></div>
+              <div><span class="config-key">Minimum History</span><span class="config-sep">:</span><span class="config-val val-num">20 observations</span></div>
+              <div><span class="config-key">Start Date</span><span class="config-sep">:</span><span class="config-val val-str">Jan 2000</span></div>
+              <div><span class="config-key">Control Factors</span><span class="config-sep">:</span><span class="config-val val-str">Net Public Supply, SOMA Change</span></div>
+              <div><span class="config-key">Focus Sectors</span><span class="config-sep">:</span><span class="config-val val-str">Banks, Foreign Official, Money Market Funds</span></div>
             </div>
           </div>
         </div>
@@ -568,7 +568,7 @@
         `<div class="empty-state"><div class="empty-text">Could not load enrichment metadata: ${escapeHTML(e.message)}</div></div>`;
     }
 
-    // Generate sector definitions table from shared label/color maps
+    // Generate sector definitions table from shared SECTOR_LABELS map
     const SECTOR_ROLES = {
       fed:                     { role: "Public Sector Holder", css: "role-public" },
       banks:                   { role: "Private Holder",       css: "role-private" },
@@ -586,32 +586,22 @@
       other_financial:         { role: "Private Holder",       css: "role-private" },
     };
 
-    const sectorOrder = [
-      "fed", "banks", "dealers", "money_market_funds", "mutual_funds_etfs",
-      "hedge_funds", "insurers", "pensions", "households_residual",
-      "nonfinancial_corporates", "state_local_governments",
-      "foreigners_official", "foreigners_private", "other_financial",
-    ];
+    // Derive sector list from SECTOR_LABELS, excluding meta keys
+    const META_KEYS = new Set(["_residual", "_total"]);
+    const sectorKeys = Object.keys(SECTOR_LABELS).filter(k => !META_KEYS.has(k));
 
     let tableHTML = `<table class="data-table">
       <thead><tr><th>Sector</th><th>Role</th></tr></thead><tbody>`;
-    for (const key of sectorOrder) {
+    for (const key of sectorKeys) {
       const label = sectorLabel(key);
       const color = sectorColor(key);
-      const info = SECTOR_ROLES[key] || { role: "Unknown", css: "role-private" };
+      const info = SECTOR_ROLES[key] || { role: "Private Holder", css: "role-private" };
       tableHTML += `<tr>
         <td><span class="sector-dot" style="background:${escapeHTML(color)};"></span>${escapeHTML(label)}</td>
         <td><span class="role-badge ${escapeHTML(info.css)}">${escapeHTML(info.role)}</span></td>
       </tr>`;
     }
     tableHTML += "</tbody></table>";
-    tableHTML += `<details style="margin-top:12px;"><summary style="font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer;">Show canonical keys (developer reference)</summary>`;
-    tableHTML += `<table class="data-table" style="margin-top:8px;"><thead><tr><th>Sector</th><th>Canonical Key</th></tr></thead><tbody>`;
-    for (const key of sectorOrder) {
-      tableHTML += `<tr><td>${escapeHTML(sectorLabel(key))}</td>
-        <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">${escapeHTML(key)}</td></tr>`;
-    }
-    tableHTML += "</tbody></table></details>";
     document.getElementById("sector-definitions-card").innerHTML = tableHTML;
   })();
   </script>

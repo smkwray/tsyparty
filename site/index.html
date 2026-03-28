@@ -133,7 +133,7 @@
                     <tr><td>Date Range</td><td class="num" id="inf-range">—</td></tr>
                     <tr><td>Quarters</td><td class="num" id="inf-quarters">—</td></tr>
                     <tr><td>Skipped</td><td class="num" id="inf-skipped">—</td></tr>
-                    <tr><td>Claims Label</td><td class="num" id="inf-claims">—</td></tr>
+                    <tr><td>Output Framing</td><td class="num" id="inf-claims">—</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -184,7 +184,8 @@
       document.getElementById("inf-range").textContent = dr.min && dr.max ? `${fmtDate(dr.min)} – ${fmtDate(dr.max)}` : "—";
       document.getElementById("inf-quarters").textContent = infManifest.quarters_processed;
       document.getElementById("inf-skipped").textContent = infManifest.quarters_skipped;
-      document.getElementById("inf-claims").textContent = infManifest.claims_label || "—";
+      const CLAIMS_LABELS = { likely_net_counterparties: "Likely Net Counterparties" };
+      document.getElementById("inf-claims").textContent = CLAIMS_LABELS[infManifest.claims_label] || infManifest.claims_label || "—";
 
       // Top metrics
       document.getElementById("m-quarters").textContent = infManifest.quarters_processed;
