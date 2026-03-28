@@ -7,6 +7,7 @@ import pytest
 from tsyparty.behavior.pipeline import (
     SimilarityConfig,
     SimilarityResult,
+    build_behavior_context,
     build_features,
     run_similarity,
     write_outputs,
@@ -111,6 +112,106 @@ def test_run_similarity_rolling_correlations():
         assert not result.rolling_correlations.empty
 
 
+def test_run_similarity_rolling_comovement_schema():
+    """Factor-adjusted comovement should be emitted as a long-form artifact."""
+    panel = _make_panel(40)
+    config = SimilarityConfig(rolling_window=8)
+    dates = sorted(panel["date"].unique())
+    context = pd.DataFrame({
+        "date": dates,
+        "delta_soma": np.random.default_rng(42).normal(0, 10, len(dates)),
+        "net_public_supply": np.random.default_rng(43).normal(100, 20, len(dates)),
+    })
+
+    result = run_similarity(panel, config, context=context)
+    assert result is not None
+    assert result.rolling_comovement is not None
+    expected = {
+        "date", "sector_1", "sector_2", "metric", "value", "p_value", "q_value",
+        "ci_low", "ci_high", "significant", "fdr_reject", "window", "n_obs", "controls",
+    }
+    assert expected.issubset(result.rolling_comovement.columns)
+    assert (result.rolling_comovement["metric"] == "partial_pearson").all()
+
+
+def test_run_similarity_rolling_comovement_covers_all_pairs():
+    """Comovement should cover all sector pairs, not just configured targets."""
+    panel = _make_panel(40)
+    config = SimilarityConfig(rolling_window=8)
+    dates = sorted(panel["date"].unique())
+    context = pd.DataFrame({
+        "date": dates,
+        "delta_soma": np.random.default_rng(42).normal(0, 10, len(dates)),
+        "net_public_supply": np.random.default_rng(43).normal(100, 20, len(dates)),
+    })
+
+    result = run_similarity(panel, config, context=context)
+    assert result is not None
+    assert result.rolling_comovement is not None
+    sectors = sorted(result.features.index.tolist())
+    expected_pairs = len(sectors) * (len(sectors) - 1) // 2
+    first_date = result.rolling_comovement["date"].min()
+    assert result.rolling_comovement[result.rolling_comovement["date"] == first_date].shape[0] == expected_pairs
+
+
+def test_run_similarity_rolling_comovement_handles_partial_controls():
+    """Comovement should still run when only a subset of configured controls is available."""
+    panel = _make_panel(40)
+    config = SimilarityConfig(rolling_window=8)
+    dates = sorted(panel["date"].unique())
+    context = pd.DataFrame({
+        "date": dates,
+        "delta_soma": np.random.default_rng(42).normal(0, 10, len(dates)),
+    })
+
+    result = run_similarity(panel, config, context=context)
+    assert result is not None
+    assert result.rolling_comovement is not None
+    assert set(result.rolling_comovement["controls"]) == {"delta_soma"}
+
+
+def test_run_similarity_rolling_comovement_preserves_missing_values():
+    """NaN sector quarters should not be coerced to zero in the comovement path."""
+    panel = _make_panel(40)
+    panel.loc[
+        (panel["sector"] == "dealers") & (panel["date"].isin(sorted(panel["date"].unique())[10:13])),
+        "holdings",
+    ] = np.nan
+    config = SimilarityConfig(rolling_window=8)
+    dates = sorted(panel["date"].dropna().unique())
+    context = pd.DataFrame({
+        "date": dates,
+        "delta_soma": np.random.default_rng(42).normal(0, 10, len(dates)),
+        "net_public_supply": np.random.default_rng(43).normal(100, 20, len(dates)),
+    })
+
+    result = run_similarity(panel, config, context=context)
+    assert result is not None
+    assert result.rolling_comovement is not None
+    affected = result.rolling_comovement[
+        (result.rolling_comovement["sector_1"] == "banks")
+        & (result.rolling_comovement["sector_2"] == "dealers")
+    ]
+    assert affected["n_obs"].min() < config.rolling_window
+
+
+def test_run_similarity_rolling_comovement_populates_q_values():
+    """Per-date multiple-testing adjustment should populate q-values."""
+    panel = _make_panel(40)
+    config = SimilarityConfig(rolling_window=8)
+    dates = sorted(panel["date"].unique())
+    context = pd.DataFrame({
+        "date": dates,
+        "delta_soma": np.random.default_rng(42).normal(0, 10, len(dates)),
+        "net_public_supply": np.random.default_rng(43).normal(100, 20, len(dates)),
+    })
+
+    result = run_similarity(panel, config, context=context)
+    assert result is not None
+    assert result.rolling_comovement is not None
+    assert result.rolling_comovement["q_value"].notna().any()
+
+
 def test_write_outputs_creates_files(tmp_path):
     """write_outputs must create features, distance matrix, and closest CSVs."""
     panel = _make_panel()
@@ -119,6 +220,7 @@ def test_write_outputs_creates_files(tmp_path):
     paths = write_outputs(result, tmp_path / "out")
     assert (tmp_path / "out" / "sector_features.csv").exists()
     assert (tmp_path / "out" / "sector_distance_matrix.csv").exists()
+    assert (tmp_path / "out" / "rolling_comovement.csv").exists()
     for target in result.closest:
         assert (tmp_path / "out" / f"closest_to_{target}.csv").exists()
 
@@ -228,3 +330,43 @@ def test_from_dict_reads_minimum_observations():
     """from_dict should propagate minimum_observations."""
     config = SimilarityConfig.from_dict({"minimum_observations": 30})
     assert config.minimum_observations == 30
+
+
+def test_build_behavior_context_combines_available_series(tmp_path):
+    """Context builder should align debt and SOMA quarterly controls."""
+    interim = tmp_path / "interim"
+    interim.mkdir()
+    pd.DataFrame({
+        "date": pd.to_datetime(["2000-03-31", "2000-06-30", "2000-09-30"]),
+        "public_debt": [100.0, 110.0, 125.0],
+    }).to_csv(interim / "debt_totals.csv", index=False)
+    pd.DataFrame({
+        "date": pd.to_datetime(["2000-06-30", "2000-09-30"]),
+        "delta_soma": [1.0, -2.0],
+    }).to_csv(interim / "soma_quarterly_delta.csv", index=False)
+
+    context = build_behavior_context(interim, SimilarityConfig())
+    assert context is not None
+    assert {"date", "net_public_supply", "delta_soma"}.issubset(context.columns)
+    assert context["net_public_supply"].notna().any()
+
+
+def test_build_behavior_context_allows_partial_controls(tmp_path):
+    """Context builder should return the available control when the other file is missing."""
+    interim = tmp_path / "interim"
+    interim.mkdir()
+    pd.DataFrame({
+        "date": pd.to_datetime(["2000-06-30", "2000-09-30"]),
+        "delta_soma": [1.0, -2.0],
+    }).to_csv(interim / "soma_quarterly_delta.csv", index=False)
+
+    context = build_behavior_context(interim, SimilarityConfig())
+    assert context is not None
+    assert list(context.columns) == ["date", "delta_soma"]
+
+
+def test_build_behavior_context_returns_none_when_missing(tmp_path):
+    """Context builder should return None when no interim inputs are present."""
+    interim = tmp_path / "interim"
+    interim.mkdir()
+    assert build_behavior_context(interim, SimilarityConfig()) is None

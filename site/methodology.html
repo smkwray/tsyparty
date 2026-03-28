@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <title>Methodology & Sources — tsyparty</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    /* Pipeline flow diagram */
+    .pipeline-flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+      padding: var(--sp-4) 0;
+    }
+
+    .pipeline-step {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--sp-3) var(--sp-4);
+      min-width: 110px;
+      text-align: center;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .pipeline-step:hover {
+      border-color: var(--accent-blue);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pipeline-step .step-number {
+      font-family: var(--font-mono);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.12);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--sp-2);
+    }
+
+    .pipeline-step .step-name {
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-1);
+    }
+
+    .pipeline-step .step-desc {
+      font-size: var(--fs-xs);
+      color: var(--text-secondary);
+      line-height: var(--lh-normal);
+    }
+
+    .pipeline-arrow {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--sp-1);
+      color: var(--text-muted);
+      font-size: var(--fs-lg);
+      user-select: none;
+    }
+
+    /* Strategy badges */
+    .strategy-badge {
+      display: inline-block;
+      padding: 1px var(--sp-2);
+      border-radius: 9999px;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .strategy-badge.discover_artifact {
+      background: rgba(188, 140, 255, 0.15);
+      color: var(--accent-purple);
+    }
+
+    .strategy-badge.direct_url {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .strategy-badge.fiscaldata_api {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
+    .strategy-badge.json_api {
+      background: rgba(210, 153, 34, 0.15);
+      color: var(--accent-orange);
+    }
+
+    /* Config display */
+    .config-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: var(--sp-4);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      line-height: 1.8;
+      overflow-x: auto;
+    }
+
+    .config-block .config-key {
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .config-block .config-sep {
+      color: var(--text-muted);
+      margin: 0 var(--sp-2);
+    }
+
+    .config-block .config-val {
+      color: var(--text-primary);
+    }
+
+    .config-block .config-val.val-bool {
+      color: var(--accent-green);
+    }
+
+    .config-block .config-val.val-str {
+      color: var(--accent-orange);
+    }
+
+    .config-block .config-val.val-num {
+      color: var(--accent-purple);
+    }
+
+    /* Sector dot */
+    .sector-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: var(--sp-2);
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    /* Enrichment metadata display */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--sp-4);
+      margin-bottom: var(--sp-4);
+    }
+
+    .meta-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: var(--sp-3) var(--sp-4);
+    }
+
+    .meta-item .meta-label {
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--sp-1);
+    }
+
+    .meta-item .meta-value {
+      font-family: var(--font-mono);
+      font-size: var(--fs-md);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .country-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+    }
+
+    .country-tag {
+      display: inline-block;
+      padding: 2px var(--sp-2);
+      background: rgba(210, 153, 34, 0.1);
+      border: 1px solid rgba(210, 153, 34, 0.25);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: var(--fs-xs);
+      color: var(--accent-orange);
+    }
+
+    /* Role badge in sector table */
+    .role-badge {
+      display: inline-block;
+      padding: 1px var(--sp-2);
+      border-radius: 9999px;
+      font-size: var(--fs-xs);
+      font-weight: 500;
+      font-family: var(--font-sans);
+    }
+
+    .role-badge.role-issuer {
+      background: rgba(248, 81, 73, 0.12);
+      color: var(--accent-red);
+    }
+
+    .role-badge.role-public {
+      background: rgba(248, 81, 73, 0.10);
+      color: var(--accent-red);
+    }
+
+    .role-badge.role-private {
+      background: rgba(88, 166, 255, 0.12);
+      color: var(--accent-blue);
+    }
+
+    .role-badge.role-intermediary {
+      background: rgba(188, 140, 255, 0.12);
+      color: var(--accent-purple);
+    }
+
+    .role-badge.role-external {
+      background: rgba(210, 153, 34, 0.12);
+      color: var(--accent-orange);
+    }
+
+    .role-badge.role-residual {
+      background: rgba(139, 148, 158, 0.15);
+      color: var(--text-secondary);
+    }
+
+    /* Disclaimer extended */
+    .disclaimer p {
+      margin-bottom: var(--sp-3);
+    }
+
+    .disclaimer p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Card title inside config blocks */
+    .config-card-title {
+      font-family: var(--font-serif);
+      font-size: var(--fs-md);
+      font-weight: 600;
+      margin-bottom: var(--sp-3);
+      color: var(--text-primary);
+    }
+
+    /* Responsive pipeline flow */
+    @media (max-width: 900px) {
+      .pipeline-flow {
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        justify-content: center;
+      }
+      .pipeline-arrow {
+        display: none;
+      }
+      .pipeline-step {
+        min-width: 100px;
+      }
+    }
+  </style>
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="sidebar">
+      <div class="sidebar-brand">
+        <h2>tsyparty</h2>
+        <div class="brand-sub">Treasury Counterparty Map</div>
+      </div>
+      <ul class="nav-links">
+        <li><a href="index.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+          Overview
+        </a></li>
+        <li><a href="holdings.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+          Holdings & Flows
+        </a></li>
+        <li><a href="inference.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zm7-10a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd"/></svg>
+          Inference
+        </a></li>
+        <li><a href="behavior.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm2 6a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z"/></svg>
+          Behavior
+        </a></li>
+        <li><a href="methodology.html" class="active">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/></svg>
+          Methodology
+        </a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+
+      <!-- 1. Page Header -->
+      <div class="page-header">
+        <h1>Methodology & Sources</h1>
+        <p class="subtitle">Data provenance, pipeline architecture, and claims discipline</p>
+      </div>
+
+      <!-- 2. Claims Discipline -->
+      <div class="disclaimer mb-4">
+        <p>All counterparty inference outputs represent <strong>likely net counterparties</strong> inferred from public quarterly sector-level holding changes. They are not bilateral trade records, not exact counterparties, and not derived from proprietary transaction data. A residual or unexplained bucket is always preserved and displayed.</p>
+        <p>The canonical estimation frequency is quarterly. Primary-market allocation (auction buyer composition) and secondary-market reallocation (RAS-inferred sector flows) are modeled as separate objects. Households and residual categories are not literal transaction traces &mdash; they absorb classification noise and missing detail.</p>
+      </div>
+
+      <!-- 3. Pipeline Architecture -->
+      <div class="section">
+        <h2 class="section-title">Pipeline Architecture</h2>
+        <div class="pipeline-flow">
+          <div class="pipeline-step">
+            <div class="step-number">1</div>
+            <div class="step-name">Download</div>
+            <div class="step-desc">Fetch raw source files from Fed, Treasury, NY Fed</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">2</div>
+            <div class="step-name">Parse</div>
+            <div class="step-desc">Extract structured tables from heterogeneous formats</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">3</div>
+            <div class="step-name">Harmonize</div>
+            <div class="step-desc">Map to canonical sector taxonomy and units</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">4</div>
+            <div class="step-name">Validate</div>
+            <div class="step-desc">Check coverage, totals, and cross-source consistency</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">5</div>
+            <div class="step-name">Baseline</div>
+            <div class="step-desc">Compute holding changes and supply deltas</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">6</div>
+            <div class="step-name">Primary Mkt</div>
+            <div class="step-desc">Allocate auction issuance to buyer classes</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">7</div>
+            <div class="step-name">Inference</div>
+            <div class="step-desc">RAS balancing to infer net counterparty flows</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">8</div>
+            <div class="step-name">Enrich Foreign</div>
+            <div class="step-desc">Split foreign holdings into official vs private</div>
+          </div>
+          <div class="pipeline-arrow">&rarr;</div>
+          <div class="pipeline-step">
+            <div class="step-number">9</div>
+            <div class="step-name">Similarity</div>
+            <div class="step-desc">Compute cosine distance and factor-adjusted sector comovement</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Data Sources Table -->
+      <div class="section">
+        <h2 class="section-title">Data Sources</h2>
+        <div class="card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Category</th>
+                <th>Frequency</th>
+                <th>Strategy</th>
+                <th>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Z.1 Financial Accounts</td>
+                <td>Federal Reserve</td>
+                <td>Quarterly</td>
+                <td><span class="strategy-badge discover_artifact">discover_artifact</span></td>
+                <td>Sector Treasury holdings backbone</td>
+              </tr>
+              <tr>
+                <td>FWTW</td>
+                <td>Federal Reserve</td>
+                <td>Quarterly</td>
+                <td><span class="strategy-badge direct_url">direct_url</span></td>
+                <td>Issuer-holder validation target</td>
+              </tr>
+              <tr>
+                <td>EFA (MMF, Banks, Intl)</td>
+                <td>Federal Reserve</td>
+                <td>Monthly / Quarterly</td>
+                <td><span class="strategy-badge direct_url">direct_url</span></td>
+                <td>Enhanced financial accounts detail</td>
+              </tr>
+              <tr>
+                <td>TIC SLT</td>
+                <td>Treasury</td>
+                <td>Monthly</td>
+                <td><span class="strategy-badge direct_url">direct_url</span></td>
+                <td>Foreign holdings by country</td>
+              </tr>
+              <tr>
+                <td>Auction Investor Class</td>
+                <td>Treasury</td>
+                <td>Monthly</td>
+                <td><span class="strategy-badge discover_artifact">discover_artifact</span></td>
+                <td>Primary market buyer composition</td>
+              </tr>
+              <tr>
+                <td>Debt to Penny</td>
+                <td>Fiscal Data</td>
+                <td>Daily</td>
+                <td><span class="strategy-badge fiscaldata_api">fiscaldata_api</span></td>
+                <td>Public debt totals</td>
+              </tr>
+              <tr>
+                <td>SOMA Holdings</td>
+                <td>NY Fed</td>
+                <td>Weekly</td>
+                <td><span class="strategy-badge json_api">json_api</span></td>
+                <td>Fed balance sheet context</td>
+              </tr>
+              <tr>
+                <td>H.8 Bank Assets</td>
+                <td>Federal Reserve</td>
+                <td>Weekly</td>
+                <td><span class="strategy-badge direct_url">direct_url</span></td>
+                <td>Bank balance sheet context</td>
+              </tr>
+              <tr>
+                <td>Primary Dealer Stats</td>
+                <td>NY Fed</td>
+                <td>Weekly</td>
+                <td><span class="strategy-badge json_api">json_api</span></td>
+                <td>Dealer positions context</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5. Configuration Display -->
+      <div class="section">
+        <h2 class="section-title">Pipeline Configuration</h2>
+        <div class="grid-2">
+          <div class="card">
+            <div class="config-card-title">Inference Config</div>
+            <div class="config-block">
+              <div><span class="config-key">max_iter</span><span class="config-sep">:</span><span class="config-val val-num">10,000</span></div>
+              <div><span class="config-key">tol</span><span class="config-sep">:</span><span class="config-val val-num">1e-8</span></div>
+              <div><span class="config-key">epsilon</span><span class="config-sep">:</span><span class="config-val val-num">1e-12</span></div>
+              <div><span class="config-key">threshold_quantile</span><span class="config-sep">:</span><span class="config-val val-num">0.65</span></div>
+              <div><span class="config-key">use_structural_zeros</span><span class="config-sep">:</span><span class="config-val val-bool">true</span></div>
+              <div><span class="config-key">require_market_clearing</span><span class="config-sep">:</span><span class="config-val val-bool">true</span></div>
+              <div><span class="config-key">claims_label</span><span class="config-sep">:</span><span class="config-val val-str">likely_net_counterparties</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="config-card-title">Behavior Config</div>
+            <div class="config-block">
+              <div><span class="config-key">distance_metric</span><span class="config-sep">:</span><span class="config-val val-str">cosine</span></div>
+              <div><span class="config-key">rolling_window</span><span class="config-sep">:</span><span class="config-val val-num">20 quarters</span></div>
+              <div><span class="config-key">minimum_observations</span><span class="config-sep">:</span><span class="config-val val-num">20</span></div>
+              <div><span class="config-key">min_date</span><span class="config-sep">:</span><span class="config-val val-str">2000-01-01</span></div>
+              <div><span class="config-key">x_cols</span><span class="config-sep">:</span><span class="config-val val-str">net_public_supply, delta_soma</span></div>
+              <div><span class="config-key">targets</span><span class="config-sep">:</span><span class="config-val val-str">banks, foreigners_official, money_market_funds</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Enrichment Methodology -->
+      <div class="section">
+        <h2 class="section-title">Foreign Holdings Enrichment</h2>
+        <div id="enrichment-section">
+          <div class="loading">Loading enrichment metadata...</div>
+        </div>
+      </div>
+
+      <!-- 7. Sector Definitions -->
+      <div class="section">
+        <h2 class="section-title">Sector Definitions</h2>
+        <div class="card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Sector</th>
+                <th>Canonical Key</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="sector-dot" style="background:#f85149;"></span>Treasury</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">treasury</td>
+                <td><span class="role-badge role-issuer">Issuer</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#f85149;"></span>Federal Reserve</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">fed</td>
+                <td><span class="role-badge role-public">Public Sector Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#58a6ff;"></span>Banks</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">banks</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#f97583;"></span>Dealers</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">dealers</td>
+                <td><span class="role-badge role-intermediary">Intermediary</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#3fb950;"></span>Money Market Funds</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">money_market_funds</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#bc8cff;"></span>Mutual Funds & ETFs</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">mutual_funds_etfs</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#b392f0;"></span>Hedge Funds</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">hedge_funds</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#79c0ff;"></span>Insurers</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">insurers</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#56d364;"></span>Pensions</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">pensions</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#8b949e;"></span>Households (Residual)</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">households_residual</td>
+                <td><span class="role-badge role-residual">Private Holder (Residual)</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#e3b341;"></span>Nonfinancial Corporates</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">nonfinancial_corporates</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#db61a2;"></span>State & Local Gov't</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">state_local_governments</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#d29922;"></span>Foreign Official</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">foreigners_official</td>
+                <td><span class="role-badge role-external">External Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#e3b341;"></span>Foreign Private</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">foreigners_private</td>
+                <td><span class="role-badge role-external">External Holder</span></td>
+              </tr>
+              <tr>
+                <td><span class="sector-dot" style="background:#7ee787;"></span>Other Financial</td>
+                <td style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-secondary);">other_financial</td>
+                <td><span class="role-badge role-private">Private Holder</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script src="vendor/plot.umd.min.js"></script>
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="js/sector-colors.js"></script>
+  <script src="js/data-loader.js"></script>
+  <script>
+  (async function() {
+    // Load enrichment metadata
+    try {
+      const meta = await fetchJSON("../data/derived/enrichment_metadata.json");
+
+      let html = '<div class="meta-grid">';
+      html += `<div class="meta-item">
+        <div class="meta-label">Split Method</div>
+        <div class="meta-value">${meta.split_method || "—"}</div>
+      </div>`;
+      html += `<div class="meta-item">
+        <div class="meta-label">Avg Official Share</div>
+        <div class="meta-value">${meta.avg_official_share != null ? (meta.avg_official_share * 100).toFixed(1) + "%" : "—"}</div>
+      </div>`;
+      html += `<div class="meta-item">
+        <div class="meta-label">Quarters with TIC Data</div>
+        <div class="meta-value">${meta.quarters_with_tic_data ?? "—"}</div>
+      </div>`;
+      html += `<div class="meta-item">
+        <div class="meta-label">Default Official Share</div>
+        <div class="meta-value">${meta.default_official_share != null ? (meta.default_official_share * 100).toFixed(0) + "%" : "—"}</div>
+      </div>`;
+      html += '</div>';
+
+      if (meta.official_holder_countries && meta.official_holder_countries.length > 0) {
+        html += '<div class="card">';
+        html += '<div class="card-header"><span class="card-title">Official Holder Countries</span>';
+        html += `<span class="badge badge-ok">${meta.official_holder_countries.length} countries</span></div>`;
+        html += '<div class="country-list">';
+        for (const country of meta.official_holder_countries) {
+          html += `<span class="country-tag">${country}</span>`;
+        }
+        html += '</div></div>';
+      }
+
+      document.getElementById("enrichment-section").innerHTML = html;
+    } catch (e) {
+      document.getElementById("enrichment-section").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load enrichment metadata: ${e.message}</div></div>`;
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -35,8 +35,12 @@ outputs/json/*
 outputs/baseline/*
 outputs/inference/*
 outputs/similarity/*
+outputs/similarity_enriched/*
 outputs/validation/*
 outputs/primary_market/*
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep
 !outputs/json/.gitkeep
+
+# Playwright test artifacts
+.playwright-mcp/

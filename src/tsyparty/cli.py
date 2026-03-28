@@ -572,7 +572,14 @@ def cmd_enrich_foreign(args: argparse.Namespace) -> None:
 
 def cmd_similarity(args: argparse.Namespace) -> None:
     """Compute sector behavior similarity from harmonized panel."""
-    from tsyparty.behavior.pipeline import SimilarityConfig, run_similarity, write_outputs, write_no_data_outputs, write_charts
+    from tsyparty.behavior.pipeline import (
+        SimilarityConfig,
+        build_behavior_context,
+        run_similarity,
+        write_outputs,
+        write_no_data_outputs,
+        write_charts,
+    )
 
     panel_path = Path(args.panel_file) if args.panel_file else Path(args.derived) / "harmonized_panel.csv"
     out = Path(args.out)
@@ -581,11 +588,8 @@ def cmd_similarity(args: argparse.Namespace) -> None:
     panel = pd.read_csv(panel_path, parse_dates=["date"])
     config = SimilarityConfig.from_behavior_yml()
 
-    # Load context factors if available (SOMA quarterly delta, etc.)
-    context = None
-    soma_path = derived.parent / "interim" / "soma_quarterly_delta.csv"
-    if soma_path.exists():
-        context = pd.read_csv(soma_path, parse_dates=["date"])
+    # Load quarterly context factors if available.
+    context = build_behavior_context(derived.parent / "interim", config=config)
 
     result = run_similarity(panel, config, context=context)
 
@@ -603,7 +607,7 @@ def cmd_similarity(args: argparse.Namespace) -> None:
         for sector, d in nearest.items():
             print(f"    {sector:30s} {d:.4f}")
 
-    if result.absorption_betas is not None:
+    if result.absorption_betas is not None and not result.absorption_betas.empty and "sector" in result.absorption_betas.columns:
         print(f"\n  Absorption betas: {len(result.absorption_betas)} obs across {result.absorption_betas['sector'].nunique()} sectors")
 
     print(f"Wrote similarity outputs to {out}")

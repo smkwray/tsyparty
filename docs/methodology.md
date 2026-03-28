@@ -131,8 +131,8 @@ For behavior, estimate sector response vectors to supply and balance-sheet condi
 Then compare sectors using:
 
 - standardized beta vectors,
-- rolling correlations,
-- cosine or Euclidean distance,
+- rolling factor-adjusted partial correlations,
+- cosine distance,
 - clustering.
 
 Outputs:

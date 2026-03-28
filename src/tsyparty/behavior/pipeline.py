@@ -17,6 +17,7 @@ from tsyparty.baseline.flows import holdings_changes_from_levels
 from tsyparty.behavior.similarity import (
     cosine_distance_matrix,
     closest_sectors,
+    rolling_partial_correlations,
     rolling_absorption_beta,
 )
 
@@ -110,8 +111,53 @@ class SimilarityResult:
     features: pd.DataFrame
     distance_matrix: pd.DataFrame
     closest: dict[str, pd.Series]  # target -> closest sectors
+    rolling_comovement: pd.DataFrame | None = None
     rolling_correlations: pd.DataFrame | None = None
     absorption_betas: pd.DataFrame | None = None
+    date_range: dict[str, str] | None = None  # {"min": "YYYY-MM-DD", "max": "YYYY-MM-DD"}
+
+
+def build_behavior_context(
+    interim_dir: str | Path,
+    config: SimilarityConfig | None = None,
+) -> pd.DataFrame | None:
+    """Build quarterly context factors for behavior estimation from interim artifacts."""
+    if config is None:
+        config = SimilarityConfig()
+
+    interim_path = Path(interim_dir)
+    series_frames: list[pd.DataFrame] = []
+
+    if "net_public_supply" in config.x_cols:
+        debt_path = interim_path / "debt_totals.csv"
+        if debt_path.exists():
+            debt = pd.read_csv(debt_path, parse_dates=["date"])
+            if {"date", "public_debt"}.issubset(debt.columns):
+                debt = debt.sort_values("date")[["date", "public_debt"]].copy()
+                debt["net_public_supply"] = debt["public_debt"].diff()
+                series_frames.append(debt[["date", "net_public_supply"]])
+
+    if "delta_soma" in config.x_cols:
+        soma_path = interim_path / "soma_quarterly_delta.csv"
+        if soma_path.exists():
+            soma = pd.read_csv(soma_path, parse_dates=["date"])
+            if {"date", "delta_soma"}.issubset(soma.columns):
+                series_frames.append(soma[["date", "delta_soma"]].copy())
+
+    if not series_frames:
+        return None
+
+    context = series_frames[0]
+    for frame in series_frames[1:]:
+        context = context.merge(frame, on="date", how="outer")
+
+    keep_cols = ["date"] + [col for col in config.x_cols if col in context.columns]
+    context = context[keep_cols].sort_values("date").reset_index(drop=True)
+    value_cols = [col for col in context.columns if col != "date"]
+    if not value_cols:
+        return None
+    context = context.dropna(how="all", subset=value_cols)
+    return context if not context.empty else None
 
 
 def build_features(
@@ -189,24 +235,34 @@ def run_similarity(
     private = panel[~panel["sector"].isin(config.exclude_sectors)].copy()
     changes = holdings_changes_from_levels(private, group_cols=["sector", "instrument"])
     changes = changes.dropna(subset=["delta_holdings"])
-    wide = changes.pivot_table(
+    wide_raw = changes.pivot_table(
         index="date", columns="sector", values="delta_holdings", aggfunc="sum"
-    ).fillna(0)
-    wide_recent = wide.loc[wide.index >= config.min_date]
+    ).sort_index()
+    wide_recent = wide_raw.loc[wide_raw.index >= config.min_date]
+    wide_recent_filled = wide_recent.fillna(0)
+
+    rolling_comovement = rolling_partial_correlations(
+        wide_recent,
+        context=context,
+        x_cols=config.x_cols,
+        window=config.rolling_window,
+    )
+    if rolling_comovement.empty:
+        rolling_comovement = None
 
     rolling_corr = None
     corr_pairs: list[tuple[str, str]] = []
     for i, t1 in enumerate(config.targets):
         for t2 in config.targets[i + 1:]:
-            if t1 in wide_recent.columns and t2 in wide_recent.columns:
+            if t1 in wide_recent_filled.columns and t2 in wide_recent_filled.columns:
                 corr_pairs.append((t1, t2))
 
     if corr_pairs:
         corr_dict: dict[str, pd.Series] = {}
         for t1, t2 in corr_pairs:
             key = f"{t1}_vs_{t2}"
-            corr_dict[key] = wide_recent[t1].rolling(config.rolling_window).corr(
-                wide_recent[t2]
+            corr_dict[key] = wide_recent_filled[t1].rolling(config.rolling_window).corr(
+                wide_recent_filled[t2]
             )
         rolling_corr = pd.DataFrame(corr_dict).dropna()
         if rolling_corr.empty:
@@ -233,12 +289,22 @@ def run_similarity(
                     import logging
                     logging.warning("Rolling absorption beta estimation failed: %s", exc)
 
+    # Compute date range from the data window used
+    date_range = None
+    if not wide_recent.empty:
+        date_range = {
+            "min": str(pd.Timestamp(wide_recent.index.min()).date()),
+            "max": str(pd.Timestamp(wide_recent.index.max()).date()),
+        }
+
     return SimilarityResult(
         features=features,
         distance_matrix=dist,
         closest=closest_map,
+        rolling_comovement=rolling_comovement,
         rolling_correlations=rolling_corr,
         absorption_betas=absorption_betas,
+        date_range=date_range,
     )
 
 
@@ -267,15 +333,39 @@ def write_outputs(result: SimilarityResult, out_dir: Path, config: SimilarityCon
         series.to_csv(p, header=True)
         paths[f"closest_{target}"] = p
 
-    # Always write rolling correlations (empty CSV if None)
+    # Always write rolling correlations (schemaful empty CSV if None)
+    comove_path = out_dir / "rolling_comovement.csv"
+    if result.rolling_comovement is not None and not result.rolling_comovement.empty:
+        result.rolling_comovement.to_csv(comove_path, index=False)
+    else:
+        pd.DataFrame(
+            columns=[
+                "date",
+                "sector_1",
+                "sector_2",
+                "metric",
+                "value",
+                "p_value",
+                "q_value",
+                "ci_low",
+                "ci_high",
+                "significant",
+                "fdr_reject",
+                "window",
+                "n_obs",
+                "controls",
+            ]
+        ).to_csv(comove_path, index=False)
+    paths["rolling_comovement"] = comove_path
+
     corr_path = out_dir / "rolling_correlations.csv"
     if result.rolling_correlations is not None:
         result.rolling_correlations.to_csv(corr_path)
     else:
-        pd.DataFrame().to_csv(corr_path)
+        pd.DataFrame(columns=["date"]).to_csv(corr_path, index=False)
     paths["rolling_correlations"] = corr_path
 
-    # Always write absorption betas (empty CSV if None)
+    # Always write absorption betas (schemaful empty CSV if None)
     beta_path = out_dir / "rolling_absorption_betas.csv"
     if result.absorption_betas is not None and not result.absorption_betas.empty:
         result.absorption_betas.to_csv(beta_path, index=False)
@@ -288,7 +378,9 @@ def write_outputs(result: SimilarityResult, out_dir: Path, config: SimilarityCon
         "schema_version": 1,
         "pipeline": "similarity",
         "status": "ok",
+        "headline_behavior_metric": "partial_pearson",
         "build_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "date_range": result.date_range or {},
         "n_sectors": int(result.distance_matrix.shape[0]),
         "targets_configured": config.targets if config else [],
         "targets_found": list(result.closest.keys()),
@@ -325,8 +417,12 @@ def write_no_data_outputs(out_dir: Path, config: SimilarityConfig) -> dict[str, 
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
 
+    # Schemaful empty CSVs — headers match success-path schemas so consumers
+    # get a well-typed empty DataFrame rather than a headerless file.
     features_path = out_dir / "sector_features.csv"
-    pd.DataFrame().to_csv(features_path)
+    pd.DataFrame(
+        columns=["mean_delta", "volatility", "share_of_total_change", "share_of_total_holdings"]
+    ).to_csv(features_path)
     paths["features"] = features_path
 
     dist_path = out_dir / "sector_distance_matrix.csv"
@@ -334,8 +430,29 @@ def write_no_data_outputs(out_dir: Path, config: SimilarityConfig) -> dict[str, 
     paths["distance_matrix"] = dist_path
 
     corr_path = out_dir / "rolling_correlations.csv"
-    pd.DataFrame().to_csv(corr_path)
+    pd.DataFrame(columns=["date"]).to_csv(corr_path, index=False)
     paths["rolling_correlations"] = corr_path
+
+    comove_path = out_dir / "rolling_comovement.csv"
+    pd.DataFrame(
+        columns=[
+            "date",
+            "sector_1",
+            "sector_2",
+            "metric",
+            "value",
+            "p_value",
+            "q_value",
+            "ci_low",
+            "ci_high",
+            "significant",
+            "fdr_reject",
+            "window",
+            "n_obs",
+            "controls",
+        ]
+    ).to_csv(comove_path, index=False)
+    paths["rolling_comovement"] = comove_path
 
     beta_path = out_dir / "rolling_absorption_betas.csv"
     pd.DataFrame(columns=["date", "sector"]).to_csv(beta_path, index=False)
@@ -345,7 +462,9 @@ def write_no_data_outputs(out_dir: Path, config: SimilarityConfig) -> dict[str, 
         "schema_version": 1,
         "pipeline": "similarity",
         "status": "no_data",
+        "headline_behavior_metric": "partial_pearson",
         "build_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "date_range": {},
         "n_sectors": 0,
         "targets_configured": config.targets,
         "targets_found": [],
@@ -395,6 +514,25 @@ def write_charts(result: SimilarityResult, out_dir: Path, config: SimilarityConf
             ylabel="Correlation",
         )
         paths["rolling_correlations_chart"] = corr_path
+
+    if result.rolling_comovement is not None and not result.rolling_comovement.empty:
+        comove_path = out_dir / "rolling_comovement.png"
+        pair_labels = (
+            result.rolling_comovement["sector_1"] + "_vs_" + result.rolling_comovement["sector_2"]
+        )
+        pivot = result.rolling_comovement.assign(pair=pair_labels).pivot_table(
+            index="date",
+            columns="pair",
+            values="value",
+        )
+        if not pivot.empty:
+            save_line_chart(
+                pivot,
+                "Rolling Factor-Adjusted Comovement",
+                comove_path,
+                ylabel="Partial Pearson Correlation",
+            )
+            paths["rolling_comovement_chart"] = comove_path
 
     # Absorption beta charts
     if result.absorption_betas is not None and not result.absorption_betas.empty:

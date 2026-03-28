@@ -76,7 +76,7 @@ tsyparty similarity --derived data/derived --out outputs/similarity
 | `baseline` | Compute holding changes, margins, and composition charts |
 | `primary-market` | Build primary-market allocation from auction data |
 | `infer` | Run RAS/sparse counterparty inference with validation checks |
-| `similarity` | Compute sector behavior distance matrix, absorption betas, and charts |
+| `similarity` | Compute sector behavior distance, factor-adjusted comovement, absorption betas, and charts |
 | `show-plan` | Print the build sequence |
 | `registry` | List configured public data sources |
 | `example` | Generate example outputs from toy data |
@@ -103,7 +103,7 @@ tsyparty similarity --derived data/derived --out outputs/similarity
 
 4. **Counterparty inference**: Use RAS (iterative proportional fitting) to estimate likely net seller-to-buyer flows, with a sparse sensitivity variant. The residual/unexplained bucket is always preserved.
 
-5. **Behavior similarity**: Cosine distance over sector features (mean delta, volatility, holding shares) plus rolling correlations.
+5. **Behavior similarity**: Cosine distance over sector features (mean delta, volatility, holding shares) plus rolling factor-adjusted comovement from quarterly holding changes.
 
 ## Claims discipline
 

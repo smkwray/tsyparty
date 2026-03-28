@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <title>Holdings & Flows — tsyparty</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="sidebar">
+      <div class="sidebar-brand">
+        <h2>tsyparty</h2>
+        <div class="brand-sub">Treasury Counterparty Map</div>
+      </div>
+      <ul class="nav-links">
+        <li><a href="index.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+          Overview
+        </a></li>
+        <li><a href="holdings.html" class="active">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+          Holdings & Flows
+        </a></li>
+        <li><a href="inference.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zm7-10a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd"/></svg>
+          Inference
+        </a></li>
+        <li><a href="behavior.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm2 6a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z"/></svg>
+          Behavior
+        </a></li>
+        <li><a href="methodology.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/></svg>
+          Methodology
+        </a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Holdings & Flows</h1>
+        <p class="subtitle">Sector-level holdings evolution, quarterly changes, primary market allocation, and reconciliation</p>
+      </div>
+
+      <!-- Section 1: Holdings Evolution -->
+      <div class="section">
+        <h2 class="section-title">Holdings Evolution</h2>
+        <div class="chart-container">
+          <div class="chart-title">Sector Holdings Over Time</div>
+          <div class="chart-subtitle">Stacked area, quarterly, billions USD — excludes totals and discrepancy rows</div>
+          <div class="chart-area" id="holdings-evolution-chart">
+            <div class="loading">Loading harmonized panel data...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Quarterly Holding Changes (Heatmap) -->
+      <div class="section">
+        <h2 class="section-title">Quarterly Holding Changes</h2>
+        <div class="chart-container">
+          <div class="chart-title">Net Holding Changes by Sector</div>
+          <div class="chart-subtitle">Heatmap of quarterly delta_holdings — red = decreases, blue = increases (last ~40 quarters)</div>
+          <div class="chart-area" id="heatmap-chart">
+            <div class="loading">Loading holding changes data...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Primary Market Allocation -->
+      <div class="section">
+        <h2 class="section-title">Primary Market Allocation</h2>
+        <div class="grid-2">
+          <div class="chart-container">
+            <div class="chart-title">Buyer Class Shares Over Time</div>
+            <div class="chart-subtitle">Stacked area of primary auction allocation by buyer class</div>
+            <div class="chart-area" id="primary-allocation-chart">
+              <div class="loading">Loading primary allocation data...</div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Allocation Summary</div>
+            <div class="chart-subtitle">Average share and amount by buyer class</div>
+            <div class="chart-area" id="primary-summary-table">
+              <div class="loading">Loading summary data...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Reconciliation -->
+      <div class="section">
+        <h2 class="section-title">Reconciliation</h2>
+        <div class="chart-container">
+          <div class="chart-title">Sector Total vs Public Debt Outstanding</div>
+          <div class="chart-subtitle">Z.1 sector holdings (market value) vs Debt-to-Penny (face value), from 1997 when Fiscal Data API coverage begins. Gap is expected due to valuation difference.</div>
+          <div class="chart-area" id="reconciliation-chart">
+            <div class="loading">Loading reconciliation data...</div>
+          </div>
+        </div>
+        <div class="chart-container mt-4">
+          <div class="chart-title">Reconciliation Gap</div>
+          <div class="chart-subtitle">Gap between sector total and public debt as percentage of public debt</div>
+          <div class="chart-area" id="gap-chart">
+            <div class="loading">Loading gap data...</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script src="vendor/plot.umd.min.js"></script>
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="js/sector-colors.js"></script>
+  <script src="js/data-loader.js"></script>
+  <script>
+  const CHART_STYLE = {
+    background: "transparent",
+    color: "var(--text-secondary)",
+    fontSize: "11px",
+    fontFamily: "var(--font-mono)",
+  };
+
+  const EXCLUDE_SECTORS = ["_total", "_discrepancy"];
+
+  function chartWidth(containerId, max) {
+    const el = document.getElementById(containerId);
+    return Math.min((el ? el.offsetWidth : 800) - 32, max || 1200);
+  }
+
+  // Color palette for primary market buyer classes (not standard sectors)
+  const BUYER_COLORS = [
+    "#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f97583",
+    "#56d364", "#79c0ff", "#e3b341", "#db61a2", "#7ee787",
+  ];
+
+  function buyerColor(idx) {
+    return BUYER_COLORS[idx % BUYER_COLORS.length];
+  }
+
+  (async function() {
+
+    /* ========================================================
+       Section 1: Holdings Evolution (Stacked Area)
+       ======================================================== */
+    try {
+      const panel = await loadDerived("harmonized_panel.csv");
+
+      // Aggregate holdings by date + sector
+      const byDate = {};
+      const sectors = new Set();
+      for (const row of panel) {
+        if (EXCLUDE_SECTORS.includes(row.sector)) continue;
+        if (!row.date || row.holdings == null) continue;
+        const d = row.date;
+        if (!byDate[d]) byDate[d] = {};
+        byDate[d][row.sector] = (byDate[d][row.sector] || 0) + (+row.holdings || 0);
+        sectors.add(row.sector);
+      }
+
+      const dates = Object.keys(byDate).sort();
+      // Sort sectors by latest-quarter size descending
+      const sectorList = [...sectors].sort((a, b) => {
+        const aVal = byDate[dates[dates.length - 1]]?.[a] || 0;
+        const bVal = byDate[dates[dates.length - 1]]?.[b] || 0;
+        return bVal - aVal;
+      });
+
+      const stackData = [];
+      for (const d of dates) {
+        for (const s of sectorList) {
+          stackData.push({
+            date: new Date(d),
+            sector: s,
+            label: sectorLabel(s),
+            holdings: (byDate[d][s] || 0) / 1e3, // billions
+          });
+        }
+      }
+
+      const chart = Plot.plot({
+        width: chartWidth("holdings-evolution-chart"),
+        height: 460,
+        marginLeft: 60,
+        marginBottom: 40,
+        marginRight: 20,
+        x: { label: null, type: "time" },
+        y: {
+          label: "Holdings (billions USD)",
+          grid: true,
+          tickFormat: d => d >= 1000 ? (d / 1000).toFixed(0) + "T" : d.toFixed(0) + "B",
+        },
+        color: {
+          domain: sectorList.map(s => sectorLabel(s)),
+          range: sectorList.map(s => sectorColor(s)),
+          legend: true,
+        },
+        marks: [
+          Plot.areaY(stackData, Plot.stackY({
+            x: "date",
+            y: "holdings",
+            z: "label",
+            fill: "label",
+            order: "appearance",
+            tip: {
+              format: {
+                x: d => fmtDate(d),
+                y: d => fmt(d, 1) + "B",
+              },
+            },
+          })),
+          Plot.ruleY([0]),
+        ],
+        style: CHART_STYLE,
+      });
+      document.getElementById("holdings-evolution-chart").replaceChildren(chart);
+    } catch (e) {
+      document.getElementById("holdings-evolution-chart").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load holdings evolution: ${e.message}</div></div>`;
+    }
+
+    /* ========================================================
+       Section 2: Quarterly Holding Changes (Heatmap)
+       ======================================================== */
+    try {
+      const changes = await loadOutputFile("baseline", "holding_changes.csv");
+
+      // Filter out excluded sectors and rows with no delta
+      const filtered = changes.filter(r =>
+        !EXCLUDE_SECTORS.includes(r.sector) && r.date && r.delta_holdings != null
+      );
+
+      // Get unique sorted dates and take last ~40
+      const allDates = [...new Set(filtered.map(r => r.date))].sort();
+      const recentDates = allDates.slice(-40);
+      const dateSet = new Set(recentDates);
+
+      const recent = filtered.filter(r => dateSet.has(r.date));
+
+      // Get sectors sorted by average absolute delta (most active first)
+      const sectorDeltas = {};
+      for (const r of recent) {
+        if (!sectorDeltas[r.sector]) sectorDeltas[r.sector] = [];
+        sectorDeltas[r.sector].push(Math.abs(+r.delta_holdings || 0));
+      }
+      const sectorList = Object.keys(sectorDeltas).sort((a, b) => {
+        const avgA = sectorDeltas[a].reduce((s, v) => s + v, 0) / sectorDeltas[a].length;
+        const avgB = sectorDeltas[b].reduce((s, v) => s + v, 0) / sectorDeltas[b].length;
+        return avgB - avgA;
+      });
+
+      // Find max absolute delta for symmetric color scale
+      const maxAbs = d3.max(recent, d => Math.abs(+d.delta_holdings || 0));
+
+      const heatData = recent.map(r => ({
+        date: r.date,
+        sector: r.sector,
+        label: sectorLabel(r.sector),
+        delta: +r.delta_holdings || 0,
+      }));
+
+      const chart = Plot.plot({
+        width: chartWidth("heatmap-chart"),
+        height: Math.max(360, sectorList.length * 28 + 80),
+        marginLeft: 160,
+        marginBottom: 60,
+        marginRight: 20,
+        marginTop: 10,
+        x: {
+          label: null,
+          domain: recentDates,
+          tickFormat: d => {
+            const dt = new Date(d);
+            const q = Math.ceil((dt.getMonth() + 1) / 3);
+            const y = String(dt.getFullYear()).slice(2);
+            return `Q${q}'${y}`;
+          },
+          tickRotate: -45,
+          padding: 0.05,
+        },
+        y: {
+          label: null,
+          domain: sectorList.map(s => sectorLabel(s)),
+          padding: 0.05,
+        },
+        color: {
+          type: "diverging",
+          domain: [-maxAbs, maxAbs],
+          scheme: "RdBu",
+          legend: true,
+          label: "Delta Holdings (B USD)",
+        },
+        marks: [
+          Plot.cell(heatData, {
+            x: "date",
+            y: "label",
+            fill: "delta",
+            tip: {
+              format: {
+                fill: false,
+              },
+              channels: {
+                "Sector": "label",
+                "Date": d => fmtDate(d.date),
+                "Change": d => fmt(d.delta, 1) + "B",
+              },
+            },
+          }),
+        ],
+        style: CHART_STYLE,
+      });
+      document.getElementById("heatmap-chart").replaceChildren(chart);
+    } catch (e) {
+      document.getElementById("heatmap-chart").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load holding changes: ${e.message}</div></div>`;
+    }
+
+    /* ========================================================
+       Section 3: Primary Market Allocation
+       ======================================================== */
+    // 3a: Stacked area of buyer class shares over time
+    try {
+      const allocation = await loadOutputFile("primary_market", "primary_allocation.csv");
+
+      // Use only "all_instruments" rows — they already represent the aggregate share
+      const filtered = allocation.filter(r => r.instrument === "all_instruments" && r.date && r.share_of_instrument != null);
+      const buyers = [...new Set(filtered.map(r => r.buyer_class))].sort();
+      const dates = [...new Set(filtered.map(r => r.date))].sort();
+
+      const stackData = [];
+      for (const d of dates) {
+        for (const b of buyers) {
+          const row = filtered.find(r => r.date === d && r.buyer_class === b);
+          stackData.push({
+            date: new Date(d),
+            buyer_class: b,
+            label: sectorLabel(b),
+            share: row ? +row.share_of_instrument : 0,
+          });
+        }
+      }
+
+      const chart = Plot.plot({
+        width: chartWidth("primary-allocation-chart", 700),
+        height: 380,
+        marginLeft: 50,
+        marginBottom: 40,
+        marginRight: 20,
+        x: { label: null, type: "time" },
+        y: { label: "Share", grid: true, domain: [0, 1] },
+        color: {
+          domain: buyers.map(b => sectorLabel(b)),
+          range: buyers.map((_, i) => buyerColor(i)),
+          legend: true,
+        },
+        marks: [
+          Plot.areaY(stackData, Plot.stackY({
+            x: "date",
+            y: "share",
+            z: "label",
+            fill: "label",
+            order: "appearance",
+            tip: {
+              format: {
+                x: false,
+                y: false,
+              },
+              channels: {
+                Date: d => fmtDate(d.date),
+                Class: "label",
+                Share: d => (d.share * 100).toFixed(1) + "%",
+              },
+            },
+          })),
+          Plot.ruleY([0]),
+          Plot.ruleY([1], { stroke: "var(--text-muted)", strokeDasharray: "2,3", strokeOpacity: 0.5 }),
+        ],
+        style: CHART_STYLE,
+      });
+      document.getElementById("primary-allocation-chart").replaceChildren(chart);
+    } catch (e) {
+      document.getElementById("primary-allocation-chart").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load primary allocation: ${e.message}</div></div>`;
+    }
+
+    // 3b: Summary table
+    try {
+      const summary = await loadOutputFile("primary_market", "primary_allocation_summary.csv");
+
+      if (!summary || summary.length === 0) throw new Error("No summary data");
+
+      let tableHTML = `<table class="data-table">
+        <thead>
+          <tr>
+            <th>Buyer Class</th>
+            <th class="num">Mean Share</th>
+            <th class="num">Mean Amount (B)</th>
+            <th class="num">Quarters</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      const sorted = [...summary].sort((a, b) => (+b.mean_share || 0) - (+a.mean_share || 0));
+      for (const row of sorted) {
+        tableHTML += `<tr>
+          <td>${sectorLabel(row.buyer_class) || "—"}</td>
+          <td class="num">${pct(+row.mean_share || 0)}</td>
+          <td class="num">${fmt(+row.mean_amount || 0, 1)}</td>
+          <td class="num">${row.quarters != null ? row.quarters : "—"}</td>
+        </tr>`;
+      }
+
+      tableHTML += `</tbody></table>`;
+      document.getElementById("primary-summary-table").innerHTML = tableHTML;
+    } catch (e) {
+      document.getElementById("primary-summary-table").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load allocation summary: ${e.message}</div></div>`;
+    }
+
+    /* ========================================================
+       Section 4: Reconciliation
+       ======================================================== */
+    try {
+      const recon = await loadDerived("reconciliation.csv");
+
+      if (!recon || recon.length === 0) throw new Error("No reconciliation data");
+
+      // Only include rows where public_debt exists (starts ~1997 from Fiscal Data API)
+      const data = recon
+        .filter(r => r.date && r.public_debt != null && +r.public_debt > 0)
+        .map(r => ({
+          date: new Date(r.date),
+          sector_total: (+r.sector_total || 0) / 1e3,   // to billions
+          public_debt: (+r.public_debt || 0) / 1e3,
+          gap_pct: +r.gap_pct || 0,
+        }))
+        .sort((a, b) => a.date - b.date);
+
+      // 4a: Line chart of sector_total vs public_debt
+      const lineData = [];
+      for (const d of data) {
+        lineData.push({ date: d.date, value: d.sector_total, series: "Sector Total" });
+        lineData.push({ date: d.date, value: d.public_debt, series: "Public Debt" });
+      }
+
+      const chart1 = Plot.plot({
+        width: chartWidth("reconciliation-chart"),
+        height: 380,
+        marginLeft: 60,
+        marginBottom: 40,
+        marginRight: 20,
+        x: { label: null, type: "time" },
+        y: {
+          label: "Billions USD",
+          grid: true,
+          tickFormat: d => d >= 1000 ? (d / 1000).toFixed(0) + "T" : d.toFixed(0) + "B",
+        },
+        color: {
+          domain: ["Sector Total", "Public Debt"],
+          range: ["var(--accent-blue)", "var(--accent-orange)"],
+          legend: true,
+        },
+        marks: [
+          Plot.line(lineData, {
+            x: "date",
+            y: "value",
+            stroke: "series",
+            strokeWidth: 2,
+            tip: {
+              format: {
+                x: d => fmtDate(d),
+                y: d => fmt(d, 1) + "B",
+              },
+            },
+          }),
+          Plot.ruleY([0]),
+        ],
+        style: CHART_STYLE,
+      });
+      document.getElementById("reconciliation-chart").replaceChildren(chart1);
+
+      // 4b: Gap percentage chart
+      const chart2 = Plot.plot({
+        width: chartWidth("gap-chart"),
+        height: 220,
+        marginLeft: 60,
+        marginBottom: 40,
+        marginRight: 20,
+        x: { label: null, type: "time" },
+        y: {
+          label: "Gap %",
+          grid: true,
+          tickFormat: d => (d * 100).toFixed(0) + "%",
+        },
+        marks: [
+          Plot.areaY(data, {
+            x: "date",
+            y: "gap_pct",
+            fill: "var(--accent-red)",
+            fillOpacity: 0.15,
+          }),
+          Plot.line(data, {
+            x: "date",
+            y: "gap_pct",
+            stroke: "var(--accent-red)",
+            strokeWidth: 1.5,
+            tip: {
+              format: {
+                x: d => fmtDate(d),
+                y: d => pct(d),
+              },
+            },
+          }),
+          Plot.ruleY([0], { stroke: "var(--text-muted)", strokeDasharray: "4,3" }),
+        ],
+        style: CHART_STYLE,
+      });
+      document.getElementById("gap-chart").replaceChildren(chart2);
+    } catch (e) {
+      document.getElementById("reconciliation-chart").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load reconciliation data: ${e.message}</div></div>`;
+      document.getElementById("gap-chart").innerHTML =
+        `<div class="empty-state"><div class="empty-text">Could not load gap data: ${e.message}</div></div>`;
+    }
+
+  })();
+  </script>
+</body>
+</html>

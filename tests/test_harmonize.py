@@ -93,6 +93,22 @@ def test_panel_to_wide():
     assert len(wide) == 2  # 2 quarters
 
 
+def test_build_panel_excludes_meta_rows():
+    z1 = _sample_z1()
+    meta = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2023-03-31", "2023-03-31"]),
+            "sector": ["_total", "_discrepancy"],
+            "instrument": ["all_treasuries", "all_treasuries"],
+            "holdings": [7000.0, 25.0],
+        }
+    )
+
+    panel = build_harmonized_panel(z1_holdings=pd.concat([z1, meta], ignore_index=True))
+    assert "_total" not in set(panel.panel["sector"])
+    assert "_discrepancy" not in set(panel.panel["sector"])
+
+
 def test_reconcile_panel_no_debt_totals():
     panel = build_harmonized_panel(z1_holdings=_sample_z1())
     report = reconcile_panel(panel)

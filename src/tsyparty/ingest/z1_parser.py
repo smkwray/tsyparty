@@ -77,7 +77,10 @@ Z1_SERIES_SECTOR_MAP: dict[str, str] = {
     "LM403061105.Q": "other_financial",    # GSEs
     "LM663061105.Q": "dealers",
     "LM733061103.Q": "other_financial",    # holding companies
-    "LM263061105.Q": "foreigners_official", # rest of world total
+    # Rest of world total in base Z.1. TIC enrichment splits this combined
+    # total into official vs private for the enriched panel.
+    "LM263061105.Q": "foreigners_official",
+    "LM903061103.Q": "_discrepancy",       # valuation discrepancy line
     # FL-prefix entries that appear in L.210 with non-standard instrument codes
     "FL673061103.Q": "other_financial",    # ABS issuers
     "FL503061123.Q": "other_financial",    # funding corporations
@@ -86,6 +89,34 @@ Z1_SERIES_SECTOR_MAP: dict[str, str] = {
 # Additional series for total Treasury securities outstanding
 # (used for reconciliation denominator).
 Z1_TOTAL_SERIES = "FL893061105.Q"  # all sectors total
+
+# L.210 lines that are intentionally excluded from the canonical sector panel:
+# table-level liability totals, bills/other subcomponents, pension sub-splits,
+# and the nonmarketable memo line. These should not surface as unmapped.
+Z1_IGNORED_SERIES: frozenset[str] = frozenset(
+    {
+        "FL313161105.Q",  # total liabilities
+        "FL313161110.Q",  # Treasury bills liabilities
+        "FL313161275.Q",  # other Treasury notes/bonds/TIPS liabilities
+        "LM713061113.Q",  # Fed Treasury bills
+        "LM713061125.Q",  # Fed other Treasuries
+        "LM513061115.Q",  # PC insurers Treasury bills
+        "LM513061125.Q",  # PC insurers other Treasuries
+        "LM543061115.Q",  # life insurers Treasury bills
+        "LM543061125.Q",  # life insurers other Treasuries
+        "LM573061143.Q",  # private pension defined benefit
+        "LM573061133.Q",  # private pension defined contribution
+        "LM343061165.Q",  # federal pension defined benefit
+        "LM343061113.Q",  # federal pension defined contribution
+        "FL633061110.Q",  # MMF Treasury bills
+        "FL633061120.Q",  # MMF other Treasuries
+        "LM653061113.Q",  # mutual fund Treasury bills
+        "LM653061125.Q",  # mutual fund other Treasuries
+        "LM263061110.Q",  # rest of world Treasury bills
+        "LM263061120.Q",  # rest of world other Treasuries
+        "FL313169205.Q",  # nonmarketable Treasury memo line
+    }
+)
 
 # Pattern: table L.210 file inside the Z.1 zip
 _L210_FILENAME_RE = re.compile(r"l210", re.IGNORECASE)
@@ -102,7 +133,7 @@ class Z1ParseResult:
     """Columns: date, sector, instrument, holdings (billions USD)."""
 
     unmapped_series: list[str]
-    """Series codes found in the table but not in the sector map."""
+    """Series codes found in L.210 that are neither mapped nor intentionally ignored."""
 
     source_file: str
     """Name of the table file parsed inside the zip."""
@@ -123,6 +154,17 @@ def _find_l210_in_zip(zf: zipfile.ZipFile) -> str | None:
         if _L210_FILENAME_RE.search(Path(name).stem) and name.endswith(".csv"):
             return name
     return None
+
+
+def classify_l210_series(series_code: str) -> str:
+    """Classify an L.210 series as mapped, total, ignored, or unmapped."""
+    if series_code == Z1_TOTAL_SERIES:
+        return "total"
+    if series_code in Z1_SERIES_SECTOR_MAP:
+        return "mapped"
+    if series_code in Z1_IGNORED_SERIES:
+        return "ignored"
+    return "unmapped"
 
 
 def parse_z1_zip(zip_path: str | Path) -> Z1ParseResult:
@@ -227,11 +269,12 @@ def _parse_l210_csv(text: str, source_file: str) -> Z1ParseResult:
             except ValueError:
                 continue
 
+            classification = classify_l210_series(series_code)
             sector = Z1_SERIES_SECTOR_MAP.get(series_code)
             if sector is None:
-                if series_code not in unmapped and series_code != Z1_TOTAL_SERIES:
+                if classification == "unmapped" and series_code not in unmapped:
                     unmapped.append(series_code)
-                if series_code == Z1_TOTAL_SERIES:
+                if classification == "total":
                     records.append(
                         {
                             "date": date,
@@ -269,7 +312,7 @@ def z1_holdings_wide(result: Z1ParseResult) -> pd.DataFrame:
     df = result.holdings
     if df.empty:
         return pd.DataFrame()
-    sectors = df[df["sector"] != "_total"]
+    sectors = df[~df["sector"].isin(["_total", "_discrepancy"])]
     return sectors.pivot_table(
         index="date", columns="sector", values="holdings", aggfunc="sum"
     ).sort_index()

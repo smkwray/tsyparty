@@ -43,11 +43,13 @@ def enrich_foreign_split(
     official_share: pd.Series | None = None,
     default_official_share: float = 0.65,
 ) -> pd.DataFrame:
-    """Split the foreigners_official sector into official and private.
+    """Split the base-panel foreign total into official and private sectors.
 
     Parameters
     ----------
-    panel : harmonized panel DataFrame (date, sector, instrument, holdings, source)
+    panel : harmonized panel DataFrame (date, sector, instrument, holdings, source).
+            In the base panel, the historical `foreigners_official` label is the
+            combined rest-of-world total from Z.1/FWTW before TIC enrichment.
     official_share : quarterly Series of official-share fractions, or None for default
     default_official_share : fallback share when no TIC data available
 
@@ -55,6 +57,8 @@ def enrich_foreign_split(
     -------
     Enriched panel with foreigners_official and foreigners_private rows.
     """
+    # Historical naming kept for downstream compatibility: this sector is the
+    # combined foreign total before enrichment, not already-official holdings.
     foreign_mask = panel["sector"] == "foreigners_official"
     foreign_rows = panel[foreign_mask].copy()
     other_rows = panel[~foreign_mask].copy()

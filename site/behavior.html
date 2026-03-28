@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <title>tsyparty — Sector Behavior</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="sidebar">
+      <div class="sidebar-brand"><h2>tsyparty</h2><div class="brand-sub">Treasury Counterparty Map</div></div>
+      <ul class="nav-links">
+        <li><a href="index.html"><svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>Overview</a></li>
+        <li><a href="holdings.html"><svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>Holdings & Flows</a></li>
+        <li><a href="inference.html"><svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zm7-10a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd"/></svg>Inference</a></li>
+        <li><a href="behavior.html" class="active"><svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm2 6a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z"/></svg>Behavior</a></li>
+        <li><a href="methodology.html"><svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/></svg>Methodology</a></li>
+      </ul>
+      <div class="sidebar-footer"><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Sector Behavior</h1>
+        <p class="subtitle">Behavioral similarity, factor-adjusted comovement, and absorption dynamics across Treasury holder sectors</p>
+      </div>
+
+      <div class="section">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Behavior Dataset</span>
+            <span class="badge badge-ok" id="dataset-badge">—</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;" id="dataset-toggle"></div>
+          <div class="chart-subtitle" id="dataset-note">Loading preferred dataset...</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Sector Distance Heatmap</h2>
+        <div class="chart-container">
+          <div class="chart-title">Pairwise Behavioral Distance Between Sectors</div>
+          <div class="chart-subtitle">Cosine distance over sector feature profiles; this is the cross-sectional similarity layer.</div>
+          <div class="chart-area" id="heatmap-chart">
+            <div class="loading">Loading distance matrix...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Nearest Neighbors</h2>
+        <div class="chart-subtitle mb-4">Click a sector to see its nearest neighbors by behavioral distance. Default targets are the public-facing reference sectors present in the selected dataset.</div>
+        <div id="nn-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
+        <div id="nn-charts" class="grid-3"></div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Sector Feature Profiles</h2>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Behavioral Features by Sector</span>
+          </div>
+          <div id="features-table">
+            <div class="loading">Loading sector features...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Factor-Adjusted Comovement</h2>
+        <div class="chart-subtitle mb-4">Rolling partial correlation of sector holding changes after removing common Treasury-market factors. Shaded bands show 95% confidence intervals.</div>
+        <div id="comove-controls" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          <span style="font-size:12px;font-family:var(--font-mono);color:var(--text-secondary);font-weight:600;">Compare</span>
+          <select id="comove-ref"></select>
+          <span style="font-size:12px;font-family:var(--font-mono);color:var(--text-secondary);font-weight:600;">against</span>
+        </div>
+        <div id="comove-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
+        <div class="chart-container">
+          <div class="chart-area" id="comove-chart">
+            <div class="loading">Loading factor-adjusted comovement...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <details>
+          <summary>Diagnostic: Raw Rolling Correlations</summary>
+          <div class="details-body">
+            <div class="chart-subtitle mb-4">Back-compat diagnostic artifact on raw quarterly holding changes for configured target pairs only. This is not the public headline metric.</div>
+            <div id="raw-corr-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
+            <div class="chart-container">
+              <div class="chart-area" id="raw-corr-chart">
+                <div class="loading">Loading raw rolling correlations...</div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Absorption Betas</h2>
+        <div class="chart-container">
+          <div class="chart-title">Exposure to Common Market Drivers</div>
+          <div class="chart-subtitle">Rolling beta of sector holding changes on available context factors such as SOMA and net public supply.</div>
+          <div class="chart-area" id="beta-chart">
+            <div class="loading">Loading absorption betas...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script src="vendor/plot.umd.min.js"></script>
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="js/sector-colors.js"></script>
+  <script src="js/data-loader.js"></script>
+  <script>
+  (async function() {
+    const chartStyle = {
+      background: "transparent",
+      color: "var(--text-secondary)",
+      fontSize: "11px",
+      fontFamily: "var(--font-mono)",
+    };
+
+    const manifests = {
+      similarity: await loadManifest("similarity"),
+      similarity_enriched: await loadManifest("similarity_enriched"),
+    };
+    const preferred = await resolvePreferredSimilarityPipeline();
+    let activePipeline = preferred.pipeline;
+
+    function activeManifest() {
+      return manifests[activePipeline];
+    }
+
+    // In the Core dataset, foreigners_official is actually all foreign holders
+    // combined (official + private). Override the label so users aren't confused
+    // when comparing against the Extended dataset where they're split.
+    function activeSectorLabel(sector) {
+      if (activePipeline === "similarity" && sector === "foreigners_official") {
+        return "Foreign (Combined)";
+      }
+      return sectorLabel(sector);
+    }
+
+    function pipelineLabel(pipeline) {
+      return pipeline === "similarity_enriched" ? "Extended" : "Core";
+    }
+
+    function setNoDataState(message) {
+      const msg = `<div class="empty-state"><div class="empty-text">${message}</div></div>`;
+      document.getElementById("heatmap-chart").innerHTML = msg;
+      document.getElementById("nn-charts").innerHTML = msg;
+      document.getElementById("features-table").innerHTML = msg;
+      document.getElementById("comove-chart").innerHTML = msg;
+      document.getElementById("raw-corr-chart").innerHTML = msg;
+      document.getElementById("beta-chart").innerHTML = msg;
+    }
+
+    function renderDatasetToggle() {
+      const container = document.getElementById("dataset-toggle");
+      container.innerHTML = "";
+      for (const pipeline of ["similarity", "similarity_enriched"]) {
+        const manifest = manifests[pipeline];
+        const available = manifest && manifest.status === "ok";
+        const button = document.createElement("button");
+        const active = pipeline === activePipeline;
+        button.textContent = pipelineLabel(pipeline);
+        button.disabled = !available;
+        button.style.cssText = `
+          padding:6px 14px;border-radius:9999px;font-size:11px;font-family:var(--font-mono);
+          cursor:${available ? "pointer" : "default"};border:2px solid ${active ? "var(--accent-blue)" : "var(--border-muted)"};
+          background:${active ? "var(--accent-blue)" : "transparent"};
+          color:${active ? "#fff" : "var(--text-primary)"};
+          opacity:${available ? "1" : "0.45"};
+          font-weight:${active ? "600" : "400"};
+        `;
+        if (available) {
+          button.addEventListener("click", () => {
+            activePipeline = pipeline;
+            renderDatasetToggle();
+            renderAll().catch((err) => console.error(err));
+          });
+        }
+        container.appendChild(button);
+      }
+
+      const manifest = activeManifest();
+      const badge = document.getElementById("dataset-badge");
+      badge.textContent = pipelineLabel(activePipeline);
+      badge.className = "badge badge-ok";
+
+      const dateRange = manifest?.date_range || {};
+      const sectors = manifest?.n_sectors ?? "—";
+      const metric = manifest?.headline_behavior_metric ? metricLabel(manifest.headline_behavior_metric) : "—";
+      const rangeLabel = dateRange.min && dateRange.max ? `${fmtDate(dateRange.min)} – ${fmtDate(dateRange.max)}` : "—";
+      document.getElementById("dataset-note").textContent =
+        `${pipelineLabel(activePipeline)} dataset · ${sectors} sectors · ${rangeLabel} · ${metric}`;
+    }
+
+    if (!activeManifest() || activeManifest().status === "no_data") {
+      renderDatasetToggle();
+      setNoDataState("Similarity pipeline has not been run yet. No behavior data available.");
+      return;
+    }
+
+    function getDefaultSelected(sectors) {
+      const defaults = ["banks", "foreigners_official", "foreigners_private", "money_market_funds"];
+      const selected = defaults.filter((sector) => sectors.includes(sector));
+      return new Set(selected.length > 0 ? selected : sectors.slice(0, Math.min(3, sectors.length)));
+    }
+
+    async function renderHeatmap() {
+      try {
+        const raw = await loadPipelineFile(activePipeline, "sector_distance_matrix.csv");
+        const colNames = Object.keys(raw[0] || {});
+        const indexCol = colNames[0];
+        const sectorNames = raw.map((row) => row[indexCol]);
+        const cells = [];
+        for (const row of raw) {
+          const rowSector = row[indexCol];
+          for (const colSector of sectorNames) {
+            cells.push({
+              x: colSector,
+              y: rowSector,
+              distance: +row[colSector],
+            });
+          }
+        }
+
+        const maxDist = d3.max(cells, (d) => d.distance);
+        const chartWidth = Math.min(document.getElementById("heatmap-chart").offsetWidth - 32, 800);
+        const chart = Plot.plot({
+          width: chartWidth,
+          height: chartWidth,
+          marginLeft: 140,
+          marginBottom: 140,
+          marginTop: 20,
+          marginRight: 20,
+          x: {
+            label: null,
+            domain: sectorNames,
+            tickFormat: (d) => activeSectorLabel(d),
+            tickRotate: -45,
+            padding: 0.05,
+          },
+          y: {
+            label: null,
+            domain: sectorNames,
+            tickFormat: (d) => activeSectorLabel(d),
+            padding: 0.05,
+          },
+          color: {
+            type: "sqrt",
+            scheme: "YlOrRd",
+            domain: [0, maxDist],
+            label: "Distance",
+            legend: true,
+          },
+          marks: [
+            Plot.cell(cells, {
+              x: "x",
+              y: "y",
+              fill: "distance",
+              tip: {
+                format: {
+                  x: (d) => activeSectorLabel(d),
+                  y: (d) => activeSectorLabel(d),
+                  fill: (d) => d.toFixed(3),
+                },
+              },
+            }),
+          ],
+          style: chartStyle,
+        });
+        document.getElementById("heatmap-chart").replaceChildren(chart);
+      } catch (e) {
+        document.getElementById("heatmap-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load distance heatmap: ${e.message}</div></div>`;
+      }
+    }
+
+    async function renderNearestNeighbors() {
+      try {
+        const distRaw = await loadPipelineFile(activePipeline, "sector_distance_matrix.csv");
+        const distColNames = Object.keys(distRaw[0] || {});
+        const indexCol = distColNames[0];
+        const sectors = distRaw.map((row) => row[indexCol]);
+        const distMap = {};
+        for (const row of distRaw) {
+          const src = row[indexCol];
+          distMap[src] = {};
+          for (const col of sectors) {
+            distMap[src][col] = +row[col] || 0;
+          }
+        }
+
+        const selected = getDefaultSelected(sectors);
+        const pills = document.getElementById("nn-pills");
+        const charts = document.getElementById("nn-charts");
+
+        function renderPills() {
+          pills.innerHTML = "";
+          for (const sector of sectors) {
+            const active = selected.has(sector);
+            const button = document.createElement("button");
+            button.textContent = activeSectorLabel(sector);
+            button.style.cssText = `
+              padding:4px 12px;border-radius:9999px;font-size:11px;font-family:var(--font-mono);
+              cursor:pointer;border:2px solid ${sectorColor(sector)};transition:all 0.15s;
+              background:${active ? sectorColor(sector) : "transparent"};
+              color:${active ? "#fff" : "var(--text-primary)"};
+              font-weight:${active ? "600" : "400"};
+            `;
+            button.addEventListener("click", () => {
+              if (selected.has(sector)) {
+                selected.delete(sector);
+              } else {
+                selected.add(sector);
+              }
+              renderPills();
+              renderCharts();
+            });
+            pills.appendChild(button);
+          }
+        }
+
+        function renderCharts() {
+          charts.innerHTML = "";
+          const count = selected.size;
+          charts.style.gridTemplateColumns = count <= 2 ? `repeat(${count || 1}, 1fr)` :
+            count === 3 ? "repeat(3, 1fr)" : "repeat(auto-fill, minmax(280px, 1fr))";
+
+          for (const target of selected) {
+            const neighbors = sectors
+              .filter((sector) => sector !== target)
+              .map((sector) => ({ sector, label: activeSectorLabel(sector), distance: distMap[target][sector] }))
+              .sort((a, b) => a.distance - b.distance)
+              .slice(0, 5);
+
+            const card = document.createElement("div");
+            card.className = "chart-container";
+            card.innerHTML = `<div class="chart-title">Closest to ${activeSectorLabel(target)}</div><div class="chart-subtitle">Top 5 by cosine distance</div>`;
+            const chartArea = document.createElement("div");
+            chartArea.className = "chart-area";
+            const chart = Plot.plot({
+              width: 380,
+              height: Math.max(180, neighbors.length * 30 + 50),
+              marginLeft: 180,
+              marginRight: 20,
+              x: { label: "Distance", grid: true },
+              y: { label: null, domain: neighbors.map((d) => d.label) },
+              marks: [
+                Plot.barX(neighbors, {
+                  x: "distance",
+                  y: "label",
+                  fill: (d) => sectorColor(d.sector),
+                  tip: { format: { x: (d) => d.toFixed(3), y: true } },
+                  sort: { y: "x" },
+                }),
+                Plot.ruleX([0]),
+              ],
+              style: chartStyle,
+            });
+            chartArea.appendChild(chart);
+            card.appendChild(chartArea);
+            charts.appendChild(card);
+          }
+
+          if (selected.size === 0) {
+            charts.innerHTML = '<div class="empty-state"><div class="empty-text">Select a sector above to see its nearest neighbors.</div></div>';
+          }
+        }
+
+        renderPills();
+        renderCharts();
+      } catch (e) {
+        document.getElementById("nn-charts").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load distance data: ${e.message}</div></div>`;
+      }
+    }
+
+    async function renderFeatures() {
+      try {
+        const raw = await loadPipelineFile(activePipeline, "sector_features.csv");
+        const colNames = Object.keys(raw[0] || {});
+        const indexCol = colNames[0];
+        const featureCols = colNames.filter((col) => col !== indexCol);
+        let html = '<table class="data-table"><thead><tr><th>Sector</th>';
+        for (const col of featureCols) {
+          const label = col.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          html += `<th class="num">${label}</th>`;
+        }
+        html += "</tr></thead><tbody>";
+        const sorted = [...raw].sort((a, b) => activeSectorLabel(a[indexCol]).localeCompare(activeSectorLabel(b[indexCol])));
+        for (const row of sorted) {
+          const sector = row[indexCol];
+          html += '<tr>';
+          html += `<td style="white-space:nowrap"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${sectorColor(sector)};margin-right:8px;vertical-align:middle"></span>${activeSectorLabel(sector)}</td>`;
+          for (const col of featureCols) {
+            const value = row[col];
+            if (col.includes("share")) {
+              html += `<td class="num">${pct(value, 1)}</td>`;
+            } else {
+              html += `<td class="num">${value != null && !isNaN(value) ? Number(value).toFixed(3) : "—"}</td>`;
+            }
+          }
+          html += "</tr>";
+        }
+        html += "</tbody></table>";
+        document.getElementById("features-table").innerHTML = html;
+      } catch (e) {
+        document.getElementById("features-table").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load sector features: ${e.message}</div></div>`;
+      }
+    }
+
+    async function renderComovement() {
+      try {
+        const raw = await loadPipelineFile(activePipeline, "rolling_comovement.csv");
+        if (!raw || raw.length === 0) throw new Error("No comovement data");
+
+        const sectors = [...new Set(raw.flatMap((row) => [row.sector_1, row.sector_2]).filter(Boolean))].sort();
+        const refSelect = document.getElementById("comove-ref");
+        const pills = document.getElementById("comove-pills");
+        const container = document.getElementById("comove-chart");
+
+        // Populate reference dropdown
+        const prevRef = refSelect.value;
+        refSelect.innerHTML = "";
+        const defaultRef = sectors.includes(prevRef) ? prevRef
+          : sectors.includes("banks") ? "banks" : sectors[0];
+        for (const s of sectors) {
+          const opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = activeSectorLabel(s);
+          if (s === defaultRef) opt.selected = true;
+          refSelect.appendChild(opt);
+        }
+
+        // Default comparison sectors
+        const defaultComps = ["foreigners_official", "foreigners_private", "money_market_funds"];
+        const selected = new Set(defaultComps.filter(s => sectors.includes(s) && s !== defaultRef));
+        if (selected.size === 0) {
+          for (const s of sectors.filter(s => s !== defaultRef).slice(0, 3)) selected.add(s);
+        }
+
+        function getRef() { return refSelect.value; }
+
+        function findPairRows(ref, comp) {
+          return raw.filter(row =>
+            (row.sector_1 === ref && row.sector_2 === comp) ||
+            (row.sector_1 === comp && row.sector_2 === ref)
+          );
+        }
+
+        function renderPills() {
+          pills.innerHTML = "";
+          const ref = getRef();
+          for (const sector of sectors) {
+            if (sector === ref) continue;
+            const active = selected.has(sector);
+            const button = document.createElement("button");
+            button.textContent = activeSectorLabel(sector);
+            button.style.cssText = `
+              padding:4px 12px;border-radius:9999px;font-size:11px;font-family:var(--font-mono);
+              cursor:pointer;border:2px solid ${sectorColor(sector)};transition:all 0.15s;
+              background:${active ? sectorColor(sector) : "transparent"};
+              color:${active ? "#fff" : "var(--text-primary)"};
+              font-weight:${active ? "600" : "400"};
+            `;
+            button.addEventListener("click", () => {
+              if (selected.has(sector)) selected.delete(sector);
+              else selected.add(sector);
+              renderPills();
+              renderChart();
+            });
+            pills.appendChild(button);
+          }
+        }
+
+        function renderChart() {
+          const ref = getRef();
+          const comps = [...selected].filter(s => s !== ref);
+
+          if (comps.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-text">Select at least one sector to compare against.</div></div>';
+            return;
+          }
+
+          const allRows = [];
+          const pairToComp = {};
+          for (const comp of comps) {
+            const pairRows = findPairRows(ref, comp);
+            const pairName = `${activeSectorLabel(ref)} vs ${activeSectorLabel(comp)}`;
+            pairToComp[pairName] = comp;
+            for (const row of pairRows) {
+              const v = +row.value, lo = +row.ci_low, hi = +row.ci_high;
+              if (isNaN(v)) continue;
+              allRows.push({
+                date: new Date(row.date),
+                value: v,
+                ci_low: isNaN(lo) ? v : lo,
+                ci_high: isNaN(hi) ? v : hi,
+                pair: pairName,
+                comp: comp,
+                significant: row.significant === true || row.significant === "true",
+                n_obs: +row.n_obs,
+                q_value: row.q_value == null || row.q_value === "" ? null : +row.q_value,
+              });
+            }
+          }
+
+          if (allRows.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-text">No data available for these pairs.</div></div>';
+            return;
+          }
+
+          const pairList = [...new Set(allRows.map(r => r.pair))].sort();
+          const colorRange = pairList.map(p => sectorColor(pairToComp[p]));
+
+          const chart = Plot.plot({
+            width: Math.min(container.offsetWidth - 32, 1200),
+            height: 420,
+            marginLeft: 50,
+            marginBottom: 40,
+            marginRight: 20,
+            x: { label: null, type: "time" },
+            y: { label: "Partial Correlation", grid: true, domain: [-1, 1] },
+            color: { domain: pairList, range: colorRange, legend: true },
+            marks: [
+              Plot.ruleY([0], { stroke: "var(--text-muted)", strokeDasharray: "4,4" }),
+              Plot.areaY(allRows, {
+                x: "date",
+                y1: "ci_low",
+                y2: "ci_high",
+                fill: "pair",
+                fillOpacity: 0.13,
+                z: "pair",
+              }),
+              Plot.lineY(allRows, {
+                x: "date",
+                y: "value",
+                stroke: "pair",
+                strokeWidth: 2,
+              }),
+              Plot.dot(allRows, {
+                x: "date",
+                y: "value",
+                stroke: "pair",
+                fill: "pair",
+                r: 2.5,
+                title: (row) => [
+                  row.pair,
+                  `Date: ${fmtDate(row.date)}`,
+                  `Correlation: ${row.value.toFixed(3)}`,
+                  `95% CI: [${row.ci_low.toFixed(3)}, ${row.ci_high.toFixed(3)}]`,
+                  row.significant ? "Significant" : "Not significant",
+                ].join("\n"),
+                tip: true,
+              }),
+            ],
+            style: chartStyle,
+          });
+          container.replaceChildren(chart);
+        }
+
+        refSelect.onchange = () => {
+          selected.delete(getRef());
+          renderPills();
+          renderChart();
+        };
+
+        renderPills();
+        renderChart();
+      } catch (e) {
+        document.getElementById("comove-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load factor-adjusted comovement: ${e.message}</div></div>`;
+      }
+    }
+
+    async function renderRawCorrelations() {
+      try {
+        const raw = await loadPipelineFile(activePipeline, "rolling_correlations.csv");
+        if (!raw || raw.length === 0) throw new Error("No raw correlation data");
+
+        const corrCols = Object.keys(raw[0]).filter((col) => col !== "" && col.includes("_vs_"));
+        const sectors = [...new Set(corrCols.flatMap((col) => col.split("_vs_").map((part) => part.trim())))].sort();
+        const selected = getDefaultSelected(sectors);
+        const pills = document.getElementById("raw-corr-pills");
+        const container = document.getElementById("raw-corr-chart");
+
+        function renderPills() {
+          pills.innerHTML = "";
+          for (const sector of sectors) {
+            const active = selected.has(sector);
+            const button = document.createElement("button");
+            button.textContent = activeSectorLabel(sector);
+            button.style.cssText = `
+              padding:4px 12px;border-radius:9999px;font-size:11px;font-family:var(--font-mono);
+              cursor:pointer;border:2px solid ${sectorColor(sector)};transition:all 0.15s;
+              background:${active ? sectorColor(sector) : "transparent"};
+              color:${active ? "#fff" : "var(--text-primary)"};
+              font-weight:${active ? "600" : "400"};
+            `;
+            button.addEventListener("click", () => {
+              if (selected.has(sector)) {
+                selected.delete(sector);
+              } else {
+                selected.add(sector);
+              }
+              renderPills();
+              renderChart();
+            });
+            pills.appendChild(button);
+          }
+        }
+
+        function renderChart() {
+          const activeCols = corrCols.filter((col) => col.split("_vs_").every((part) => selected.has(part.trim())));
+          if (activeCols.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-text">Select at least two sectors to see raw target-pair correlations.</div></div>';
+            return;
+          }
+
+          const longData = [];
+          for (const row of raw) {
+            const dateStr = row.date || row[""] || row[Object.keys(row)[0]];
+            if (!dateStr) continue;
+            for (const col of activeCols) {
+              const value = +row[col];
+              if (isNaN(value)) continue;
+              longData.push({
+                date: new Date(dateStr),
+                pair: col.split("_vs_").map((sector) => activeSectorLabel(sector.trim())).join(" vs "),
+                correlation: value,
+              });
+            }
+          }
+
+          const pairs = [...new Set(longData.map((row) => row.pair))].sort();
+          const pairColors = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#bc8cff", "#56d4dd", "#db61a2", "#79c0ff", "#7ee787"];
+          const chart = Plot.plot({
+            width: Math.min(container.offsetWidth - 32, 1200),
+            height: 360,
+            marginLeft: 50,
+            marginBottom: 40,
+            marginRight: 20,
+            x: { label: null, type: "time" },
+            y: { label: "Correlation", grid: true, domain: [-1, 1] },
+            color: { domain: pairs, range: pairColors.slice(0, pairs.length), legend: true },
+            marks: [
+              Plot.ruleY([0], { stroke: "var(--text-muted)", strokeDasharray: "4,4" }),
+              Plot.lineY(longData, {
+                x: "date",
+                y: "correlation",
+                stroke: "pair",
+                strokeWidth: 1.4,
+                tip: { format: { x: (d) => fmtDate(d), y: (d) => d.toFixed(3) } },
+              }),
+            ],
+            style: chartStyle,
+          });
+          container.replaceChildren(chart);
+        }
+
+        renderPills();
+        renderChart();
+      } catch (e) {
+        document.getElementById("raw-corr-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load raw correlations: ${e.message}</div></div>`;
+      }
+    }
+
+    async function renderBetas() {
+      try {
+        const raw = await loadPipelineFile(activePipeline, "rolling_absorption_betas.csv");
+        const betaCols = Object.keys(raw[0] || {}).filter((col) => col.startsWith("beta_"));
+        if (!raw || raw.length === 0 || betaCols.length === 0) throw new Error("No absorption beta data");
+
+        const activeBeta = betaCols.includes("beta_delta_soma") ? "beta_delta_soma" : betaCols[0];
+        const allData = raw
+          .map((row) => ({
+            sector: row.sector,
+            label: activeSectorLabel(row.sector),
+            date: new Date(row.date),
+            beta: +row[activeBeta],
+          }))
+          .filter((row) => row.sector && !isNaN(row.beta) && !isNaN(row.date));
+
+        const allSectors = [...new Set(allData.map((row) => row.sector))].sort();
+        const hidden = new Set();
+        const container = document.getElementById("beta-chart");
+
+        function renderChart() {
+          const visible = allData.filter((row) => !hidden.has(row.sector));
+          const visibleSectors = allSectors.filter((sector) => !hidden.has(sector));
+          const chart = Plot.plot({
+            width: Math.min(container.offsetWidth - 32, 1200),
+            height: 440,
+            marginLeft: 50,
+            marginBottom: 40,
+            marginRight: 20,
+            x: { label: null, type: "time" },
+            y: { label: `Beta (${activeBeta.replace("beta_", "")})`, grid: true },
+            color: {
+              domain: visibleSectors.map((sector) => activeSectorLabel(sector)),
+              range: visibleSectors.map((sector) => sectorColor(sector)),
+            },
+            marks: [
+              Plot.ruleY([0], { stroke: "var(--text-muted)", strokeDasharray: "4,4" }),
+              Plot.lineY(visible, {
+                x: "date",
+                y: "beta",
+                stroke: "label",
+                strokeWidth: 1.5,
+                tip: {
+                  format: {
+                    x: (d) => fmtDate(d),
+                    y: (d) => d.toFixed(3),
+                    stroke: true,
+                  },
+                },
+              }),
+            ],
+            style: chartStyle,
+          });
+
+          const legend = document.createElement("div");
+          legend.style.cssText = "display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:12px;font-size:11px;font-family:var(--font-mono);";
+          for (const sector of allSectors) {
+            const item = document.createElement("span");
+            const isHidden = hidden.has(sector);
+            item.style.cssText = `cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:4px;transition:opacity 0.15s;user-select:none;opacity:${isHidden ? "0.3" : "1"};`;
+            const swatch = document.createElement("span");
+            swatch.style.cssText = `width:10px;height:10px;border-radius:2px;background:${sectorColor(sector)};display:inline-block;`;
+            item.appendChild(swatch);
+            item.appendChild(document.createTextNode(activeSectorLabel(sector)));
+            item.addEventListener("click", () => {
+              if (hidden.has(sector)) {
+                hidden.delete(sector);
+              } else if (hidden.size < allSectors.length - 1) {
+                hidden.add(sector);
+              }
+              renderChart();
+            });
+            legend.appendChild(item);
+          }
+
+          container.replaceChildren(legend, chart);
+        }
+
+        renderChart();
+      } catch (e) {
+        document.getElementById("beta-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load absorption betas: ${e.message}</div></div>`;
+      }
+    }
+
+    async function renderAll() {
+      if (!activeManifest() || activeManifest().status !== "ok") {
+        setNoDataState(`No data available for the ${pipelineLabel(activePipeline).toLowerCase()} behavior dataset.`);
+        return;
+      }
+      await Promise.all([
+        renderHeatmap(),
+        renderNearestNeighbors(),
+        renderFeatures(),
+        renderComovement(),
+        renderRawCorrelations(),
+        renderBetas(),
+      ]);
+    }
+
+    renderDatasetToggle();
+    await renderAll();
+  })();
+  </script>
+</body>
+</html>

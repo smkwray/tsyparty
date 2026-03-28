@@ -64,8 +64,65 @@ def test_cmd_similarity_smoke(tmp_path):
     assert (out / "sector_features.csv").exists()
     assert (out / "sector_distance_matrix.csv").exists()
     assert (out / "manifest.json").exists()
+    assert (out / "rolling_comovement.csv").exists()
     assert (out / "rolling_correlations.csv").exists()
     assert (out / "rolling_absorption_betas.csv").exists()
+
+
+def test_cmd_similarity_writes_comovement_when_context_available(tmp_path):
+    """cmd_similarity should emit rolling_comovement.csv when interim context exists."""
+    from tsyparty.cli import cmd_similarity
+
+    _make_panel(24, tmp_path)
+    interim = tmp_path.parent / "interim"
+    interim.mkdir(exist_ok=True)
+    pd.DataFrame({
+        "date": pd.to_datetime(["2001-06-30", "2001-09-30", "2001-12-31", "2002-03-31"]),
+        "public_debt": [100.0, 105.0, 112.0, 120.0],
+    }).to_csv(interim / "debt_totals.csv", index=False)
+    pd.DataFrame({
+        "date": pd.to_datetime(["2001-06-30", "2001-09-30", "2001-12-31", "2002-03-31"]),
+        "delta_soma": [1.0, -2.0, 0.5, 3.0],
+    }).to_csv(interim / "soma_quarterly_delta.csv", index=False)
+
+    out = tmp_path / "similarity_out"
+    args = argparse.Namespace(
+        panel_file=str(tmp_path / "panel.csv"),
+        derived=str(tmp_path),
+        out=str(out),
+    )
+    cmd_similarity(args)
+
+    assert (out / "rolling_comovement.csv").exists()
+
+
+def test_cmd_similarity_enriched_panel_writes_private_foreign_outputs(tmp_path):
+    """Similarity should emit foreign-private artifacts when run on the enriched panel."""
+    from tsyparty.cli import cmd_similarity
+
+    panel = _make_panel(24, tmp_path)
+    foreign_private = panel[panel["sector"] == "foreigners_official"].copy()
+    foreign_private["sector"] = "foreigners_private"
+    foreign_private["holdings"] = foreign_private["holdings"] * 0.4
+
+    foreign_official = panel[panel["sector"] == "foreigners_official"].copy()
+    foreign_official["holdings"] = foreign_official["holdings"] * 0.6
+
+    enriched = pd.concat(
+        [panel[panel["sector"] != "foreigners_official"], foreign_official, foreign_private],
+        ignore_index=True,
+    ).sort_values(["date", "sector"])
+    enriched.to_csv(tmp_path / "panel_enriched.csv", index=False)
+
+    out = tmp_path / "similarity_enriched_out"
+    args = argparse.Namespace(
+        panel_file=str(tmp_path / "panel_enriched.csv"),
+        derived=str(tmp_path),
+        out=str(out),
+    )
+    cmd_similarity(args)
+
+    assert (out / "closest_to_foreigners_private.csv").exists()
 
 
 def test_cmd_similarity_no_data(tmp_path):

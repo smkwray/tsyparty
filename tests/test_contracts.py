@@ -147,6 +147,7 @@ class TestSimilarityContract:
         expected_files = {
             "sector_features.csv",
             "sector_distance_matrix.csv",
+            "rolling_comovement.csv",
             "rolling_correlations.csv",
             "rolling_absorption_betas.csv",
             "manifest.json",
@@ -186,8 +187,13 @@ class TestSimilarityContract:
         assert manifest["schema_version"] == 1
         assert manifest["pipeline"] == "similarity"
         assert manifest["status"] == "ok"
+        assert manifest["headline_behavior_metric"] == "partial_pearson"
         assert isinstance(manifest["n_sectors"], int)
         assert manifest["n_sectors"] > 0
+        # date_range present and populated on success path
+        assert isinstance(manifest["date_range"], dict)
+        assert "min" in manifest["date_range"]
+        assert "max" in manifest["date_range"]
         # Configured vs found targets
         assert isinstance(manifest["targets_configured"], list)
         assert isinstance(manifest["targets_found"], list)
@@ -210,6 +216,8 @@ class TestSimilarityContract:
             manifest = json.load(f)
 
         assert manifest["status"] == "no_data"
+        assert manifest["headline_behavior_metric"] == "partial_pearson"
+        assert manifest["date_range"] == {}
         assert manifest["n_sectors"] == 0
         assert manifest["targets_found"] == []
         assert manifest["targets_configured"] == config.targets
@@ -224,6 +232,7 @@ class TestSimilarityContract:
         expected = {
             "sector_features.csv",
             "sector_distance_matrix.csv",
+            "rolling_comovement.csv",
             "rolling_correlations.csv",
             "rolling_absorption_betas.csv",
             "manifest.json",
@@ -242,3 +251,22 @@ class TestSimilarityContract:
 
         disk_files = sorted(p.name for p in out.iterdir())
         assert manifest["files_written"] == disk_files
+
+    def test_no_data_csvs_have_schema_headers(self, tmp_path):
+        """No-data CSVs should have column headers matching success-path schemas."""
+        config = SimilarityConfig()
+        out = tmp_path / "sim_empty"
+        sim_write_no_data(out, config=config)
+
+        features = pd.read_csv(out / "sector_features.csv", index_col=0)
+        assert set(features.columns) == {"mean_delta", "volatility", "share_of_total_change", "share_of_total_holdings"}
+        assert len(features) == 0
+
+        betas = pd.read_csv(out / "rolling_absorption_betas.csv")
+        assert "date" in betas.columns
+        assert "sector" in betas.columns
+        assert len(betas) == 0
+
+        corr = pd.read_csv(out / "rolling_correlations.csv")
+        assert "date" in corr.columns
+        assert len(corr) == 0

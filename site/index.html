@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <title>tsyparty — Treasury Counterparty Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/components.css">
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="sidebar">
+      <div class="sidebar-brand">
+        <h2>tsyparty</h2>
+        <div class="brand-sub">Treasury Counterparty Map</div>
+      </div>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+          Overview
+        </a></li>
+        <li><a href="holdings.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+          Holdings & Flows
+        </a></li>
+        <li><a href="inference.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zm7-10a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd"/></svg>
+          Inference
+        </a></li>
+        <li><a href="behavior.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm2 6a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z"/></svg>
+          Behavior
+        </a></li>
+        <li><a href="methodology.html">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/></svg>
+          Methodology
+        </a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Who Holds U.S. Treasuries?</h1>
+        <p class="subtitle">Public-data counterparty inference and sector behavior mapping</p>
+      </div>
+
+      <div class="disclaimer mb-4">
+        All outputs represent <strong>likely net counterparties</strong> estimated from public data.
+        These are not exact bilateral trade records. A residual bucket is always preserved.
+      </div>
+
+      <!-- Metrics -->
+      <div class="grid-4 section" id="metrics">
+        <div class="metric-card">
+          <div class="metric-label">Sectors Tracked</div>
+          <div class="metric-value accent-blue" id="m-sectors">—</div>
+          <div class="metric-sub">private + foreign holders</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Quarters Processed</div>
+          <div class="metric-value accent-green" id="m-quarters">—</div>
+          <div class="metric-sub" id="m-daterange">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Convergence Rate</div>
+          <div class="metric-value accent-purple" id="m-convergence">—</div>
+          <div class="metric-sub">RAS market-clearing</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Data Sources</div>
+          <div class="metric-value accent-orange">8</div>
+          <div class="metric-sub">Fed, Treasury, NY Fed</div>
+        </div>
+      </div>
+
+      <!-- Holdings overview chart -->
+      <div class="section">
+        <h2 class="section-title">Sector Holdings Over Time</h2>
+        <div class="chart-container">
+          <div class="chart-title">Treasury Holdings by Sector</div>
+          <div class="chart-subtitle">Quarterly, billions USD, from Federal Reserve Z.1 Financial Accounts</div>
+          <div class="chart-area" id="holdings-chart">
+            <div class="loading">Loading holdings data...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latest composition -->
+      <div class="section">
+        <h2 class="section-title">Latest Quarter Snapshot</h2>
+        <div class="grid-2">
+          <div class="chart-container">
+            <div class="chart-title">Sector Share of Total Holdings</div>
+            <div class="chart-subtitle">Most recent quarter available</div>
+            <div class="chart-area" id="shares-chart">
+              <div class="loading">Loading...</div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Net Buyers vs Sellers</div>
+            <div class="chart-subtitle">Quarterly holding change, most recent quarter</div>
+            <div class="chart-area" id="margins-chart">
+              <div class="loading">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline status (collapsible) -->
+      <div class="section">
+        <details>
+          <summary>Pipeline Status</summary>
+          <div class="details-body">
+            <div class="grid-2 mt-4">
+              <div class="card">
+                <div class="card-header">
+                  <span class="card-title">Inference Pipeline</span>
+                  <span class="badge" id="inf-badge">—</span>
+                </div>
+                <table class="data-table">
+                  <tbody>
+                    <tr><td>Build Time</td><td class="num" id="inf-time">—</td></tr>
+                    <tr><td>Date Range</td><td class="num" id="inf-range">—</td></tr>
+                    <tr><td>Quarters</td><td class="num" id="inf-quarters">—</td></tr>
+                    <tr><td>Skipped</td><td class="num" id="inf-skipped">—</td></tr>
+                    <tr><td>Claims Label</td><td class="num" id="inf-claims">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card">
+                <div class="card-header">
+                  <span class="card-title">Similarity Pipeline</span>
+                  <span class="badge" id="sim-badge">—</span>
+                </div>
+                <table class="data-table">
+                  <tbody>
+                    <tr><td>Build Time</td><td class="num" id="sim-time">—</td></tr>
+                    <tr><td>Date Range</td><td class="num" id="sim-range">—</td></tr>
+                    <tr><td>Sectors</td><td class="num" id="sim-sectors">—</td></tr>
+                    <tr><td>Targets Found</td><td class="num" id="sim-targets">—</td></tr>
+                    <tr><td>Distance Metric</td><td class="num" id="sim-metric">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script src="vendor/plot.umd.min.js"></script>
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="js/sector-colors.js"></script>
+  <script src="js/data-loader.js"></script>
+  <script>
+  (async function() {
+    // Load manifests
+    const [infManifest, preferredSim] = await Promise.all([
+      loadManifest("inference"),
+      resolvePreferredSimilarityPipeline(),
+    ]);
+    const simManifest = preferredSim.manifest;
+
+    // Inference status
+    if (infManifest) {
+      const badge = document.getElementById("inf-badge");
+      badge.textContent = "OK";
+      badge.className = "badge badge-ok";
+      document.getElementById("inf-time").textContent = new Date(infManifest.build_timestamp).toLocaleString();
+      const dr = infManifest.date_range || {};
+      document.getElementById("inf-range").textContent = dr.min && dr.max ? `${fmtDate(dr.min)} – ${fmtDate(dr.max)}` : "—";
+      document.getElementById("inf-quarters").textContent = infManifest.quarters_processed;
+      document.getElementById("inf-skipped").textContent = infManifest.quarters_skipped;
+      document.getElementById("inf-claims").textContent = infManifest.claims_label || "—";
+
+      // Top metrics
+      document.getElementById("m-quarters").textContent = infManifest.quarters_processed;
+      document.getElementById("m-daterange").textContent = dr.min && dr.max ? `${fmtDate(dr.min)} – ${fmtDate(dr.max)}` : "";
+    }
+
+    // Similarity status
+    if (simManifest) {
+      const badge = document.getElementById("sim-badge");
+      badge.textContent = simManifest.status === "ok" ? "OK" : simManifest.status.toUpperCase();
+      badge.className = `badge badge-${simManifest.status === "ok" ? "ok" : "no-data"}`;
+      document.getElementById("sim-time").textContent = new Date(simManifest.build_timestamp).toLocaleString();
+      const dr = simManifest.date_range || {};
+      document.getElementById("sim-range").textContent = dr.min && dr.max ? `${fmtDate(dr.min)} – ${fmtDate(dr.max)}` : "—";
+      document.getElementById("sim-sectors").textContent = simManifest.n_sectors;
+      document.getElementById("sim-targets").textContent = (simManifest.targets_found || []).map(t => sectorLabel(t)).join(", ");
+      document.getElementById("sim-metric").textContent = metricLabel(simManifest.headline_behavior_metric || simManifest.config?.distance_metric || "—");
+
+      document.getElementById("m-sectors").textContent = simManifest.n_sectors;
+    }
+
+    // Convergence rate from diagnostics
+    try {
+      const diag = await loadPipelineFile("inference", "quarter_diagnostics.json");
+      if (diag && diag.length > 0) {
+        const cleared = diag.filter(d => d.market_clearing_passes).length;
+        document.getElementById("m-convergence").textContent = pct(cleared / diag.length, 0);
+      }
+    } catch {}
+
+    // Holdings stacked area
+    try {
+      const panel = await loadDerived("harmonized_panel.csv");
+      const excludeSectors = ["_total", "_discrepancy"];
+
+      // Pivot: date -> sector -> holdings
+      const byDate = {};
+      const sectors = new Set();
+      for (const row of panel) {
+        if (excludeSectors.includes(row.sector)) continue;
+        if (!row.date || row.holdings == null) continue;
+        const d = row.date;
+        if (!byDate[d]) byDate[d] = {};
+        byDate[d][row.sector] = (byDate[d][row.sector] || 0) + row.holdings;
+        sectors.add(row.sector);
+      }
+
+      const dates = Object.keys(byDate).sort();
+      const sectorList = [...sectors].sort((a, b) => {
+        const aVal = byDate[dates[dates.length-1]]?.[a] || 0;
+        const bVal = byDate[dates[dates.length-1]]?.[b] || 0;
+        return bVal - aVal;
+      });
+
+      const stackData = [];
+      for (const d of dates) {
+        for (const s of sectorList) {
+          stackData.push({ date: new Date(d), sector: s, label: sectorLabel(s), holdings: (byDate[d][s] || 0) / 1e3 });
+        }
+      }
+
+      const chart = Plot.plot({
+        width: Math.min(document.getElementById("holdings-chart").offsetWidth - 32, 1200),
+        height: 420,
+        marginLeft: 60,
+        marginBottom: 40,
+        marginRight: 20,
+        x: { label: null, type: "time" },
+        y: { label: "Holdings (trillions USD)", grid: true, tickFormat: d => d >= 1000 ? (d/1000).toFixed(0) + "T" : d.toFixed(0) + "B" },
+        color: { domain: sectorList.map(s => sectorLabel(s)), range: sectorList.map(s => sectorColor(s)), legend: true },
+        marks: [
+          Plot.areaY(stackData, Plot.stackY({
+            x: "date",
+            y: "holdings",
+            z: "label",
+            fill: "label",
+            order: "appearance",
+            tip: { format: { x: d => fmtDate(d), y: d => fmt(d, 1) + "B" } },
+          })),
+          Plot.ruleY([0]),
+        ],
+        style: {
+          background: "transparent",
+          color: "var(--text-secondary)",
+          fontSize: "11px",
+          fontFamily: "var(--font-mono)",
+        },
+      });
+      document.getElementById("holdings-chart").replaceChildren(chart);
+    } catch (e) {
+      document.getElementById("holdings-chart").innerHTML = `<div class="empty-state"><div class="empty-text">Could not load holdings: ${e.message}</div></div>`;
+    }
+
+    // Latest quarter shares (bar chart)
+    try {
+      const panel = await loadDerived("harmonized_panel.csv");
+      const excludeSectors = ["_total", "_discrepancy"];
+      const dates = [...new Set(panel.map(r => r.date))].sort();
+      const latestDate = dates[dates.length - 1];
+      const latest = panel.filter(r => r.date === latestDate && !excludeSectors.includes(r.sector));
+      const total = latest.reduce((s, r) => s + (r.holdings || 0), 0);
+      const shares = latest.map(r => ({
+        sector: r.sector,
+        share: (r.holdings || 0) / total,
+        label: sectorLabel(r.sector),
+      })).sort((a, b) => b.share - a.share);
+
+      const chart = Plot.plot({
+        width: Math.min(document.getElementById("shares-chart").offsetWidth - 32, 600),
+        height: 360,
+        marginLeft: 160,
+        marginRight: 20,
+        x: { label: "Share of Total", grid: true, percent: true },
+        y: { label: null, domain: shares.map(d => d.label) },
+        marks: [
+          Plot.barX(shares, {
+            x: "share",
+            y: "label",
+            fill: d => sectorColor(d.sector),
+            tip: { format: { x: d => pct(d) } },
+          }),
+          Plot.ruleX([0]),
+        ],
+        style: { background: "transparent", color: "var(--text-secondary)", fontSize: "11px", fontFamily: "var(--font-mono)" },
+      });
+      document.getElementById("shares-chart").replaceChildren(chart);
+    } catch (e) {
+      document.getElementById("shares-chart").innerHTML = `<div class="empty-state"><div class="empty-text">${e.message}</div></div>`;
+    }
+
+    // Latest margins (buyers vs sellers)
+    try {
+      const changes = await loadOutputFile("baseline", "holding_changes.csv");
+      const dates = [...new Set(changes.map(r => r.date))].sort();
+      // Use the last 2 quarters to compute latest delta
+      const latestDate = dates[dates.length - 1];
+      const excludeSectors = ["_total", "_discrepancy"];
+      const latest = changes.filter(r => r.date === latestDate && !excludeSectors.includes(r.sector));
+      const data = latest
+        .map(r => ({
+          sector: r.sector,
+          label: sectorLabel(r.sector),
+          delta: r.delta_holdings || 0,
+        }))
+        .filter(d => d.delta !== 0)
+        .sort((a, b) => b.delta - a.delta);
+
+      const chart = Plot.plot({
+        width: Math.min(document.getElementById("margins-chart").offsetWidth - 32, 600),
+        height: 360,
+        marginLeft: 160,
+        marginRight: 20,
+        x: { label: "Holding Change (B USD)", grid: true },
+        y: { label: null, domain: data.map(d => d.label) },
+        color: { domain: [-1, 0, 1], range: [SECTOR_COLORS.dealers, "var(--text-muted)", SECTOR_COLORS.banks], type: "linear" },
+        marks: [
+          Plot.barX(data, {
+            x: "delta",
+            y: "label",
+            fill: d => d.delta >= 0 ? "var(--accent-green)" : "var(--accent-red)",
+            tip: { format: { x: d => fmt(d, 1) + "B" } },
+          }),
+          Plot.ruleX([0]),
+        ],
+        style: { background: "transparent", color: "var(--text-secondary)", fontSize: "11px", fontFamily: "var(--font-mono)" },
+      });
+      document.getElementById("margins-chart").replaceChildren(chart);
+    } catch (e) {
+      document.getElementById("margins-chart").innerHTML = `<div class="empty-state"><div class="empty-text">${e.message}</div></div>`;
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -78,8 +78,8 @@ def build_harmonized_panel(
 
     combined = pd.concat(frames, ignore_index=True)
 
-    # Filter out the _total row (used only for reconciliation)
-    combined = combined[combined["sector"] != "_total"].copy()
+    # Filter out meta rows used for diagnostics rather than the canonical panel.
+    combined = combined[~combined["sector"].isin(["_total", "_discrepancy"])].copy()
 
     # Resolve overlaps: keep the priority source when both exist
     if len(sources) > 1:
