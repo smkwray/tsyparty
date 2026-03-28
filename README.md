@@ -2,6 +2,12 @@
 
 Public-data Treasury counterparty inference and sector-behavior mapping.
 
+**[Dashboard](site/index.html)** — interactive static site with holdings charts, sector behavior heatmaps, factor-adjusted comovement, and pipeline status. Serve locally after running the pipeline:
+
+```bash
+python3 -m http.server 8899   # then open http://localhost:8899/site/index.html
+```
+
 `tsyparty` builds a reproducible, public-data-only map of who holds U.S. Treasury securities, how holdings flow between sectors, and which sectors behave most similarly. It answers four questions:
 
 1. When banks add Treasury holdings, who are the most likely **net sellers**?
