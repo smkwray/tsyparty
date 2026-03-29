@@ -15,6 +15,7 @@ dist/
 
 # Internal planning
 do/
+docs/
 
 # Data artifacts (reproducible via reproduce.sh)
 data/raw_public/*
