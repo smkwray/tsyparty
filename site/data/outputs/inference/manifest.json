@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "pipeline": "inference",
+  "build_timestamp": "2026-03-27T22:54:43.995273+00:00",
+  "date_range": {
+    "min": "1946-12-31",
+    "max": "2025-12-31"
+  },
+  "quarters_processed": 299,
+  "quarters_skipped": 3,
+  "files_written": [
+    "auction_comparison.csv",
+    "baseline_matrices.csv",
+    "counterparty_flows.csv",
+    "fwtw_comparison.csv",
+    "manifest.json",
+    "quarter_diagnostics.json",
+    "skip_records.json",
+    "tic_foreign_comparison.csv"
+  ],
+  "claims_label": "likely_net_counterparties",
+  "config": {
+    "max_iter": 10000,
+    "tol": 1e-08,
+    "epsilon": 1e-12,
+    "threshold_quantile": 0.65,
+    "sparse_enabled": true,
+    "sparse_cv_enabled": false,
+    "sparse_cv_quantiles": [
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75,
+      0.8
+    ],
+    "use_structural_zeros": true,
+    "exclude_sectors": [
+      "_total",
+      "_discrepancy",
+      "fed"
+    ],
+    "require_market_clearing": true,
+    "compare_to_fwtw_levels": true,
+    "compare_to_auction_allotments": true,
+    "compare_foreign_side_to_tic": true,
+    "claims_label": "likely_net_counterparties"
+  }
+}

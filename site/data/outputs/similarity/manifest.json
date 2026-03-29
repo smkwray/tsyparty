@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "pipeline": "similarity",
+  "status": "ok",
+  "headline_behavior_metric": "partial_pearson",
+  "build_timestamp": "2026-03-28T13:44:22.915244+00:00",
+  "date_range": {
+    "min": "2000-03-31",
+    "max": "2025-12-31"
+  },
+  "n_sectors": 11,
+  "targets_configured": [
+    "banks",
+    "foreigners_official",
+    "foreigners_private",
+    "money_market_funds"
+  ],
+  "targets_found": [
+    "banks",
+    "foreigners_official",
+    "money_market_funds"
+  ],
+  "files_written": [
+    "closest_to_banks.csv",
+    "closest_to_foreigners_official.csv",
+    "closest_to_money_market_funds.csv",
+    "manifest.json",
+    "rolling_absorption_betas.csv",
+    "rolling_comovement.csv",
+    "rolling_correlations.csv",
+    "sector_distance_matrix.csv",
+    "sector_features.csv"
+  ],
+  "config": {
+    "distance_metric": "cosine",
+    "rolling_window": 20,
+    "min_date": "2000-01-01",
+    "top_n": 5,
+    "minimum_observations": 20,
+    "x_cols": [
+      "net_public_supply",
+      "delta_soma"
+    ],
+    "exclude_sectors": [
+      "_total",
+      "_discrepancy",
+      "fed"
+    ],
+    "targets": [
+      "banks",
+      "foreigners_official",
+      "foreigners_private",
+      "money_market_funds"
+    ]
+  }
+}

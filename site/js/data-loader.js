@@ -1,9 +1,9 @@
 /* Manifest-driven data loader for tsyparty static site.
  * Reads manifests first, then loads CSV/JSON artifacts as needed. */
 
-const DATA_BASE = "../outputs";
-const DERIVED_BASE = "../data/derived";
-const INTERIM_BASE = "../data/interim";
+const DATA_BASE = "data/outputs";
+const DERIVED_BASE = "data/derived";
+const INTERIM_BASE = "data/interim";
 
 const dataCache = {};
 

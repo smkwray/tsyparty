@@ -1,0 +1,30 @@
+{
+  "split_method": "tic_country_heuristic",
+  "official_holder_countries": [
+    "Brazil",
+    "China, Mainland",
+    "Hong Kong",
+    "India",
+    "Indonesia",
+    "Israel",
+    "Japan",
+    "Kuwait",
+    "Mexico",
+    "Norway",
+    "Philippines",
+    "Qatar",
+    "Russia",
+    "Saudi Arabia",
+    "Singapore",
+    "South Korea",
+    "Taiwan",
+    "Thailand",
+    "Turkey",
+    "United Arab Emirates"
+  ],
+  "avg_official_share": 0.1005,
+  "min_official_share": 0.0841,
+  "max_official_share": 0.1164,
+  "quarters_with_tic_data": 25,
+  "default_official_share": 0.65
+}

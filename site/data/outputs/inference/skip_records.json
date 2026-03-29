@@ -1,0 +1,23 @@
+[
+  {
+    "date": "1974-12-31",
+    "status": "skipped",
+    "reason": "empty_margins",
+    "error_type": null,
+    "error_message": null
+  },
+  {
+    "date": "2023-12-31",
+    "status": "skipped",
+    "reason": "empty_margins",
+    "error_type": null,
+    "error_message": null
+  },
+  {
+    "date": "2024-09-30",
+    "status": "skipped",
+    "reason": "empty_margins",
+    "error_type": null,
+    "error_message": null
+  }
+]
