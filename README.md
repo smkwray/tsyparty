@@ -2,7 +2,9 @@
 
 Public-data Treasury counterparty inference and sector-behavior mapping.
 
-**[Dashboard](site/index.html)** — interactive static site with holdings charts, sector behavior heatmaps, factor-adjusted comovement, and pipeline status. Serve locally after running the pipeline:
+**[Live Dashboard](https://smkwray.github.io/tsyparty/)** — interactive site with holdings charts, sector behavior heatmaps, factor-adjusted comovement, and pipeline status.
+
+To serve locally with your own pipeline data:
 
 ```bash
 python3 -m http.server 8899   # then open http://localhost:8899/site/index.html
