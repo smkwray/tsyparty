@@ -677,6 +677,8 @@ def cmd_issuance_maturity_response(args: argparse.Namespace) -> None:
     )
 
     config = IssuanceMaturityResponseConfig.from_yaml()
+    if args.sample_start_quarter is not None:
+        config.sample_start_quarter = args.sample_start_quarter
     if args.transaction_basis is not None:
         config.transaction_basis = args.transaction_basis
     if args.min_observations is not None:
@@ -866,6 +868,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Quarterly control universe, required unless --no-factor-controls is set",
     )
+    p_maturity.add_argument("--sample-start-quarter", default=None, help="First estimation/screening quarter (YYYYQn); retain earlier treatment/control history")
     p_maturity.add_argument("--transaction-basis", choices=["FA_SAAR_millions", "FU_quarterly_millions", "prequarterized_billions"], default=None)
     p_maturity.add_argument("--no-factor-controls", action="store_true", help="Disable screened factor-control robustness")
     p_maturity.add_argument("--horizons", default="", help="Comma-separated horizons, e.g. 0,1,2,4")

@@ -58,6 +58,7 @@ DEFAULT_SECTOR_GROUPS = {
 
 @dataclass(slots=True)
 class IssuanceMaturityResponseConfig:
+    sample_start_quarter: str | None = None
     trailing_expectation_quarters: int = 8
     min_expectation_quarters: int = 4
     horizons: list[int] = field(default_factory=lambda: [0, 1, 2, 4])
@@ -99,6 +100,7 @@ class IssuanceMaturityResponseConfig:
         inference = cfg.get("inference", {})
         claims = cfg.get("claims", {})
         return cls(
+            sample_start_quarter=cfg.get("sample", {}).get("start_quarter"),
             trailing_expectation_quarters=int(treatment.get("trailing_expectation_quarters", 8)),
             min_expectation_quarters=int(treatment.get("min_expectation_quarters", 4)),
             horizons=[int(item) for item in outcomes.get("horizons", [0, 1, 2, 4])],
@@ -643,6 +645,15 @@ def run_issuance_maturity_response(
     controls = build_core_controls(fred_dir) if fred_dir is not None else pd.DataFrame()
     if not controls.empty:
         outcomes = outcomes.merge(treatment[["date"]], on="date", how="inner")
+    # Keep pre-sample observations for treatment expectations and control lags.
+    # Restrict the estimation and screening sample before constructing factors.
+    if config.sample_start_quarter is not None:
+        start = pd.Period(config.sample_start_quarter, freq="Q")
+        if str(start) != config.sample_start_quarter:
+            raise ValueError("sample_start_quarter must use YYYYQn format")
+        outcomes = outcomes[outcomes["date"].dt.to_period("Q") >= start].copy()
+        if outcomes.empty or outcomes["date"].min().to_period("Q") != start:
+            raise ValueError("Requested sample start quarter is unavailable")
     factor_controls, factor_summary = build_factor_controls(
         outcomes,
         control_universe_path or config.control_universe_path,
@@ -661,6 +672,8 @@ def run_issuance_maturity_response(
         "selected_factor_inference": "exploratory_post_selection: screening and factor extraction use the estimation sample; point estimates only",
         "share_units": "percentage points",
         "sample": {
+            "requested_start_quarter": config.sample_start_quarter,
+            "history_boundary": "Treatment expectations and control lags use retained pre-sample history; factor screening uses the restricted sample",
             "start": str(pd.Timestamp(outcomes["date"].min()).date()) if not outcomes.empty else "",
             "end": str(pd.Timestamp(outcomes["date"].max()).date()) if not outcomes.empty else "",
             "quarters": int(outcomes["date"].nunique()) if not outcomes.empty else 0,

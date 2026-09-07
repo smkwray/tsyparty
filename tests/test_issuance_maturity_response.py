@@ -220,3 +220,38 @@ def test_factor_models_do_not_emit_naive_inference(tmp_path):
     assert "point estimates only" in bundle["selected_factor_inference"]
     assert bundle["transaction_basis"] == "FU_quarterly_millions"
     assert bundle["denominator_perimeter"] == "non_fed_positive_net_acquisition"
+
+
+def test_explicit_sample_start_preserves_history_and_restricts_factor_screen(monkeypatch):
+    import tsyparty.behavior.issuance_maturity_response as module
+
+    config = IssuanceMaturityResponseConfig(
+        transaction_basis="FU_quarterly_millions", min_observations=8,
+        factor_controls_enabled=False,
+    )
+    full = run_issuance_maturity_response(_auctions(), _sector_panel(), config)
+    seen = []
+
+    def capture(panel, path, cfg):
+        seen.append(panel["date"].min())
+        return pd.DataFrame(), pd.DataFrame()
+
+    monkeypatch.setattr(module, "build_factor_controls", capture)
+    config.sample_start_quarter = "2020Q1"
+    restricted = run_issuance_maturity_response(_auctions(), _sector_panel(), config)
+    expected = full.outcome_panel[full.outcome_panel["date"] >= "2020-01-01"]
+    pd.testing.assert_frame_equal(restricted.outcome_panel, expected)
+    pd.testing.assert_frame_equal(restricted.treatment_panel, full.treatment_panel)
+    assert seen == [pd.Timestamp("2020-03-31")]
+    assert restricted.design_summary["sample"]["requested_start_quarter"] == "2020Q1"
+    assert set(restricted.estimates.query("horizon == 4")["n_obs"]) == {12}
+
+
+@pytest.mark.parametrize("start", ["2030Q1", "2020-01-01"])
+def test_explicit_sample_start_rejects_unavailable_or_nonquarter_start(start):
+    config = IssuanceMaturityResponseConfig(
+        transaction_basis="FU_quarterly_millions", sample_start_quarter=start,
+        factor_controls_enabled=False,
+    )
+    with pytest.raises(ValueError, match="sample start quarter|YYYYQn"):
+        run_issuance_maturity_response(_auctions(), _sector_panel(), config)

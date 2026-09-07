@@ -203,3 +203,8 @@ requires complete requested quarters, checks primary table units and the exhaust
 crosswalk, and records input hashes and the committed producer. Supplementary
 credit-union cells retain their own source and retrieval date. It never refreshes
 data or replaces missing observations with zero.
+
+The issuance-maturity command accepts `--sample-start-quarter YYYYQn` for an explicit
+estimation and factor-screening sample. Treatment expectations and lagged controls
+retain earlier input history. This option does not fill missing control quarters;
+calendar-contiguity checks still apply to every fitted sample.
