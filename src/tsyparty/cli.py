@@ -613,6 +613,103 @@ def cmd_similarity(args: argparse.Namespace) -> None:
     print(f"Wrote similarity outputs to {out}")
 
 
+def cmd_holder_response(args: argparse.Namespace) -> None:
+    """Estimate sector holder responses to a quarterly issuance-mix shock."""
+    from tsyparty.behavior.holder_response import (
+        HolderResponseConfig,
+        load_shock_artifact,
+        run_holder_response,
+        write_chart,
+        write_outputs,
+    )
+    from tsyparty.behavior.pipeline import build_behavior_context
+
+    config = HolderResponseConfig.from_yaml()
+    if args.shock_col:
+        config.shock_col = args.shock_col
+    if args.max_horizon is not None:
+        config.max_horizon_quarters = int(args.max_horizon)
+    if args.scale_bn is not None:
+        config.shock_scale_bn = float(args.scale_bn)
+
+    panel_path = Path(args.panel_file) if args.panel_file else Path(args.derived) / "harmonized_panel.csv"
+    panel = pd.read_csv(panel_path, parse_dates=["date"])
+    shock = load_shock_artifact(args.shock, config.shock_col)
+
+    controls = [c for c in (args.controls or "").split(",") if c]
+    context = None
+    context_cols = sorted(set(controls + ["net_public_supply"]))
+    if context_cols:
+        from tsyparty.behavior.pipeline import SimilarityConfig
+
+        context_config = SimilarityConfig(x_cols=context_cols)
+        context = build_behavior_context(Path(args.derived).parent / "interim", config=context_config)
+
+    result = run_holder_response(panel, shock, config=config, context=context, controls=controls)
+    out = Path(args.out)
+    paths = write_outputs(result, out, config=config, shock_path=args.shock)
+    chart_path = write_chart(result, out, config=config)
+    if chart_path is not None:
+        paths["chart"] = chart_path
+
+    print(
+        "Holder response: "
+        f"{result.response_panel['sector'].nunique()} sectors, "
+        f"{result.date_range.get('min')} to {result.date_range.get('max')}, "
+        f"shock={config.shock_col} scaled to ${config.shock_scale_bn:,.0f}B"
+    )
+    print(f"  Outcome source: {result.outcome_source}; residual: {result.residual_method}")
+    print(f"  Wrote bundle: {paths['bundle']}")
+    if chart_path is not None:
+        print(f"  Chart: {chart_path}")
+
+
+def cmd_issuance_maturity_response(args: argparse.Namespace) -> None:
+    """Estimate sector absorption-share responses to issuance WAM changes."""
+    from tsyparty.behavior.issuance_maturity_response import (
+        IssuanceMaturityResponseConfig,
+        run_issuance_maturity_response,
+        write_charts,
+        write_outputs,
+    )
+
+    config = IssuanceMaturityResponseConfig.from_yaml()
+    if args.min_observations is not None:
+        config.min_observations = int(args.min_observations)
+    if args.no_factor_controls:
+        config.factor_controls_enabled = False
+    if args.horizons:
+        config.horizons = [int(item) for item in args.horizons.split(",") if item.strip()]
+
+    auctions = pd.read_csv(args.auction_file, low_memory=False)
+    z1_panel = pd.read_csv(args.sector_panel)
+    control_universe = None if args.no_factor_controls else args.control_universe
+
+    result = run_issuance_maturity_response(
+        auctions,
+        z1_panel,
+        config,
+        fred_dir=args.fred_dir,
+        control_universe_path=control_universe,
+    )
+    out = Path(args.out)
+    paths = write_outputs(result, out)
+    chart_paths = write_charts(result, out)
+
+    sample = result.design_summary["sample"]
+    models = sorted(result.estimates["model"].unique()) if not result.estimates.empty else []
+    print(
+        "Issuance maturity response: "
+        f"{sample['quarters']} quarters, {sample['start']} to {sample['end']}, "
+        f"{len(result.estimates)} estimates"
+    )
+    print("  Outcome: cumulative sector net transactions / cumulative positive absorption")
+    print(f"  Models: {', '.join(models) if models else 'none; check sample size or controls'}")
+    print(f"  Wrote bundle: {paths['maturity_response_bundle.json']}")
+    for label, path in chart_paths.items():
+        print(f"  Chart ({label}): {path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tsyparty")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -721,6 +818,55 @@ def build_parser() -> argparse.ArgumentParser:
     p_similarity.add_argument("--panel-file", default=None, help="Path to panel CSV (default: <derived>/harmonized_panel.csv)")
     p_similarity.add_argument("--out", default="outputs/similarity", help="Output directory")
     p_similarity.set_defaults(func=cmd_similarity)
+
+    p_holder = subparsers.add_parser("holder-response", help="Estimate sector responses to issuance-mix shocks")
+    p_holder.add_argument("--derived", default="data/derived", help="Derived data directory")
+    p_holder.add_argument("--panel-file", default=None, help="Path to panel CSV (default: <derived>/harmonized_panel.csv)")
+    p_holder.add_argument("--shock", required=True, help="Quarterly shock CSV with date or quarter plus shock column")
+    p_holder.add_argument("--shock-col", default=None, help="Shock column (default from configs/holder_response.yml)")
+    p_holder.add_argument("--scale-bn", type=float, default=None, help="Shock scaling in billions (default from config)")
+    p_holder.add_argument("--max-horizon", type=int, default=None, help="Maximum cumulative horizon in quarters")
+    p_holder.add_argument(
+        "--controls",
+        default="",
+        help="Comma-separated quarterly controls from interim context, e.g. net_public_supply,delta_soma",
+    )
+    p_holder.add_argument("--out", default="outputs/holder_response", help="Output directory")
+    p_holder.set_defaults(func=cmd_holder_response)
+
+    p_maturity = subparsers.add_parser(
+        "issuance-maturity-response",
+        help="Estimate sector absorption-share responses to issuance WAM changes",
+    )
+    p_maturity.add_argument(
+        "--auction-file",
+        required=True,
+        help="Fiscal Data auction CSV with issue_date, maturity_date, and amount columns",
+    )
+    p_maturity.add_argument(
+        "--sector-panel",
+        required=True,
+        help="Sector panel with Z.1 Treasury transactions",
+    )
+    p_maturity.add_argument(
+        "--fred-dir",
+        default=None,
+        help="Directory of FRED-style controls; missing files are skipped",
+    )
+    p_maturity.add_argument(
+        "--control-universe",
+        default=None,
+        help="Quarterly control universe, required unless --no-factor-controls is set",
+    )
+    p_maturity.add_argument("--no-factor-controls", action="store_true", help="Disable screened factor-control robustness")
+    p_maturity.add_argument("--horizons", default="", help="Comma-separated horizons, e.g. 0,1,2,4")
+    p_maturity.add_argument("--min-observations", type=int, default=None, help="Minimum observations per regression")
+    p_maturity.add_argument(
+        "--out",
+        default="outputs/holder_response/issuance_maturity_response",
+        help="Output directory",
+    )
+    p_maturity.set_defaults(func=cmd_issuance_maturity_response)
 
     return parser
 

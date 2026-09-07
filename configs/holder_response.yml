@@ -1,0 +1,36 @@
+# Metadata-only keys:
+version: 1
+canonical_frequency: quarterly
+
+shock:
+  # qrawatch's public maturity-tilt table exposes ati_baseline_bn as the
+  # signed bill-heavy financing object in billions of dollars.
+  default_column: ati_baseline_bn
+  scale_bn: 100.0
+
+estimation:
+  max_horizon_quarters: 4
+  min_observations: 8
+  covariance: HC1
+
+outcomes:
+  preferred_transaction_columns:
+    - transactions
+    - treasury_transactions
+    - net_transactions
+    - net_flow
+  fallback_to_holdings_change: true
+  panel_units: millions
+  report_units: billions
+
+sectors:
+  exclude:
+    - _discrepancy
+  total_sector: _total
+  residual_sector: _residual
+  policy_legs:
+    - fed
+
+claims:
+  label: reduced-form holder-base evidence
+  caveat: mechanism evidence for the TDC buyer-mix channel, not a settled causal policy elasticity

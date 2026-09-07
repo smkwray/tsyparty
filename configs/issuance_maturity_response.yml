@@ -1,0 +1,40 @@
+version: 1
+canonical_frequency: quarterly
+
+treatment:
+  name: issuance_wam_gap_years
+  description: Auction-weighted years to maturity of new issuance minus trailing expected issuance maturity.
+  trailing_expectation_quarters: 8
+  min_expectation_quarters: 4
+  unit: years
+
+outcomes:
+  horizons: [0, 1, 2, 4]
+  share_scale: 100.0
+  min_positive_absorption_bn: 1.0
+
+controls:
+  core:
+    - issuance_volume_gap_bn
+    - dgs10_l1
+    - slope_10y2y_l1
+    - term_premium_10y_l1
+    - fed_treasury_change_l1
+    - tga_change_l1
+    - onrrp_change_l1
+    - vix_l1
+
+factor_controls:
+  enabled: true
+  k_grid: [100, 200, 300]
+  factor_count: 4
+  min_coverage: 0.6
+  control_universe_path: null
+
+inference:
+  covariance: newey_west
+  min_observations: 40
+
+claims:
+  label: reduced-form maturity-response evidence
+  caveat: supporting evidence about holder absorption, not a standalone causal policy elasticity

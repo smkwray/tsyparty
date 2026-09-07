@@ -62,6 +62,19 @@ tsyparty infer --derived data/derived --out outputs/inference
 
 # Behavior similarity
 tsyparty similarity --derived data/derived --out outputs/similarity
+
+# Holder-response mechanism artifacts
+tsyparty holder-response \
+  --derived data/derived \
+  --shock path/to/qrawatch_maturity_tilt.csv \
+  --out outputs/holder_response
+
+# Issuance maturity response for descriptive mechanism analysis
+tsyparty issuance-maturity-response \
+  --auction-file path/to/auctions.csv \
+  --sector-panel path/to/sector_panel.csv \
+  --no-factor-controls \
+  --out outputs/holder_response/issuance_maturity_response
 ```
 
 ## Available commands
@@ -85,6 +98,8 @@ tsyparty similarity --derived data/derived --out outputs/similarity
 | `primary-market` | Build primary-market allocation from auction data |
 | `infer` | Run RAS/sparse counterparty inference with validation checks |
 | `similarity` | Compute sector behavior distance, factor-adjusted comovement, absorption betas, and charts |
+| `holder-response` | Estimate quarterly sector Treasury transaction responses to imported bill-heavy issuance / maturity-tilt shocks |
+| `issuance-maturity-response` | Estimate sector absorption-share responses to whole-curve issuance weighted-average maturity changes |
 | `show-plan` | Print the build sequence |
 | `registry` | List configured public data sources |
 | `example` | Generate example outputs from toy data |
@@ -113,6 +128,8 @@ tsyparty similarity --derived data/derived --out outputs/similarity
 
 5. **Behavior similarity**: Cosine distance over sector features (mean delta, volatility, holding shares) plus rolling factor-adjusted comovement from quarterly holding changes.
 
+6. **Holder-response sidecar**: Imported QRA or maturity-tilt shock artifacts can be aligned to the quarterly sector panel to estimate reduced-form sector transaction responses. This is descriptive mechanism evidence for the buyer-mix channel, not a counterparty matrix and not a settled causal policy elasticity.
+
 ## Claims discipline
 
 This tool labels outputs as **likely net counterparties**, not exact bilateral trades. It:
@@ -129,7 +146,7 @@ src/tsyparty/
   reconcile/      # Harmonization, accounting, enrichment
   baseline/       # Holding changes, buyer/seller flows, primary market
   infer/          # RAS counterparty matrix estimation
-  behavior/       # Sector similarity analysis
+  behavior/       # Sector similarity, holder-response, and issuance-maturity response sidecars
   validate/       # Cross-validation against independent sources
   viz/            # Chart generation
   cli.py          # CLI entry points
@@ -148,3 +165,9 @@ pytest tests/ -v
 ## License
 
 MIT
+
+The response commands require explicit input files. For factor robustness, supply
+`--control-universe`; `--no-factor-controls` explicitly omits that tier. Missing
+core controls are reported, and a partial set is not labeled as the full model.
+Quarterly gaps are rejected by the maturity-response estimator. These diagnostics
+require a separate evidence review before use as empirical findings.

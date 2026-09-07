@@ -109,6 +109,14 @@ sources:
     download_strategy: fiscaldata_api
     purpose: daily Treasury debt operations context
 
+  fiscaldata_auctions:
+    category: fiscaldata
+    frequency: security_level
+    landing_url: https://fiscaldata.treasury.gov/datasets/treasury-securities-auctions-data/treasury-securities-auctions-data
+    api_url: https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query
+    download_strategy: fiscaldata_api
+    purpose: security-level issuance amount and maturity for auction-weighted WAM response analysis
+
   dts_operating_cash:
     category: fiscaldata
     frequency: daily

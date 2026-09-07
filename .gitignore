@@ -39,9 +39,19 @@ outputs/similarity/*
 outputs/similarity_enriched/*
 outputs/validation/*
 outputs/primary_market/*
+outputs/holder_response/*
+outputs/issuance_maturity_response/*
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep
 !outputs/json/.gitkeep
 
 # Playwright test artifacts
 .playwright-mcp/
+
+# Private workspace and agent state
+AGENTS.md
+CLAUDE.md
+.codex/
+.claude/
+.cursor/
+.worktrees/

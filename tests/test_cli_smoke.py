@@ -28,6 +28,43 @@ def _make_panel(n_quarters: int = 12, tmp_path=None) -> pd.DataFrame:
     return panel
 
 
+def _make_issuance_maturity_inputs(n_quarters: int = 24) -> tuple[pd.DataFrame, pd.DataFrame]:
+    auction_rows = []
+    sector_rows = []
+    dates = pd.date_range("2018-03-31", periods=n_quarters, freq="QE")
+    for i, q_end in enumerate(dates):
+        q_start = q_end - pd.offsets.QuarterBegin(startingMonth=q_end.month)
+        auction_rows.extend(
+            [
+                {
+                    "issue_date": q_start + pd.Timedelta(days=10),
+                    "maturity_date": q_start + pd.Timedelta(days=192),
+                    "total_accepted": 90_000_000_000 + i * 1_000_000_000,
+                },
+                {
+                    "issue_date": q_start + pd.Timedelta(days=40),
+                    "maturity_date": q_start + pd.Timedelta(days=3652),
+                    "total_accepted": 40_000_000_000 + (i % 5) * 12_000_000_000,
+                },
+            ]
+        )
+        cycle = float((i % 5) - 2)
+        for key, base in {
+            "bank_us_chartered": 20.0,
+            "bank_foreign_banking_offices_us": 6.0,
+            "bank_us_affiliated_areas": 2.0,
+            "foreigners_total": 30.0,
+            "money_market_funds": 18.0,
+            "mutual_funds": 12.0,
+            "security_brokers_and_dealers": 8.0,
+            "households_nonprofits": 14.0,
+        }.items():
+            bank_like = key.startswith("bank_") or key == "foreigners_total"
+            transactions = (base + cycle * (3.0 if bank_like else -1.5)) * 1000.0
+            sector_rows.append({"date": q_end, "sector_key": key, "transactions": transactions})
+    return pd.DataFrame(auction_rows), pd.DataFrame(sector_rows)
+
+
 def test_cmd_infer_smoke(tmp_path):
     """cmd_infer should run without error on a synthetic panel."""
     from tsyparty.cli import cmd_infer
@@ -159,6 +196,70 @@ def test_cmd_similarity_no_data(tmp_path):
     assert (out / "sector_distance_matrix.csv").exists()
     assert (out / "rolling_correlations.csv").exists()
     assert (out / "rolling_absorption_betas.csv").exists()
+
+
+def test_cmd_holder_response_smoke(tmp_path):
+    """cmd_holder_response should write presentation-facing holder artifacts."""
+    from tsyparty.cli import cmd_holder_response
+
+    panel = _make_panel(16, tmp_path)
+    total = panel.groupby("date", as_index=False)["holdings"].sum()
+    total["sector"] = "_total"
+    total["instrument"] = "treasury"
+    panel = pd.concat([panel, total[["date", "sector", "instrument", "holdings"]]], ignore_index=True)
+    panel.to_csv(tmp_path / "panel.csv", index=False)
+
+    shock = pd.DataFrame({
+        "date": sorted(panel["date"].drop_duplicates()),
+        "ati_baseline_bn": [float(i % 4) for i in range(16)],
+    })
+    shock.to_csv(tmp_path / "shock.csv", index=False)
+
+    out = tmp_path / "holder_response_out"
+    args = argparse.Namespace(
+        panel_file=str(tmp_path / "panel.csv"),
+        derived=str(tmp_path),
+        shock=str(tmp_path / "shock.csv"),
+        shock_col=None,
+        scale_bn=None,
+        max_horizon=1,
+        controls="",
+        out=str(out),
+    )
+    cmd_holder_response(args)
+
+    assert (out / "holder_response_bundle.json").exists()
+    assert (out / "sector_response_coefficients.csv").exists()
+    assert (out / "sector_response_cumulative.csv").exists()
+    assert (out / "holder_response_chart.png").exists()
+
+
+def test_cmd_issuance_maturity_response_smoke(tmp_path):
+    """cmd_issuance_maturity_response should write maturity-response artifacts."""
+    from tsyparty.cli import cmd_issuance_maturity_response
+
+    auction_file = tmp_path / "auctions.csv"
+    sector_panel = tmp_path / "z1_sector_panel_full.csv"
+    auctions, sectors = _make_issuance_maturity_inputs()
+    auctions.to_csv(auction_file, index=False)
+    sectors.to_csv(sector_panel, index=False)
+
+    out = tmp_path / "issuance_maturity_response_out"
+    args = argparse.Namespace(
+        auction_file=str(auction_file),
+        sector_panel=str(sector_panel),
+        fred_dir=str(tmp_path / "missing_fred"),
+        control_universe=str(tmp_path / "missing_controls.csv"),
+        no_factor_controls=True,
+        horizons="0,1",
+        min_observations=8,
+        out=str(out),
+    )
+    cmd_issuance_maturity_response(args)
+
+    assert (out / "maturity_response_bundle.json").exists()
+    assert (out / "maturity_response_estimates.csv").exists()
+    assert (out / "sector_absorption_share_response.png").exists()
 
 
 def test_cmd_validate_smoke(tmp_path):

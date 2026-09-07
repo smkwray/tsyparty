@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-  {name = "Research Scaffold"}
+  {name = "smkwray"}
 ]
 dependencies = [
   "beautifulsoup4>=4.12",
