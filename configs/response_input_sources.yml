@@ -1,0 +1,146 @@
+transaction_basis: FU_quarterly_millions
+table_member: csv/fu210.csv
+dictionary_member: data_dictionary/fu210.txt
+table_units: Millions of dollars; transactions, not seasonally adjusted
+mapping_reference:
+  project: wamest
+  commit: 96f4df245d3c5a79ebd4eb6d01e915e439a08151
+  catalog: configs/z1_series_catalog_full.yaml
+  sectors: configs/sector_definitions_full.yaml
+included_series:
+  bank_us_chartered:
+  - FU763061100.Q
+  bank_foreign_banking_offices_us:
+  - FU753061103.Q
+  bank_us_affiliated_areas:
+  - FU743061103.Q
+  foreigners_total:
+  - FU263061105.Q
+  money_market_funds:
+  - FU633061105.Q
+  mutual_funds:
+  - FU653061105.Q
+  exchange_traded_funds:
+  - FU563061103.Q
+  closed_end_funds:
+  - FU553061103.Q
+  security_brokers_and_dealers:
+  - FU663061105.Q
+  federal_defined_benefit_pensions:
+  - FU343061165.Q
+  federal_defined_contribution_pensions:
+  - FU343061113.Q
+  private_defined_benefit_pensions:
+  - FU573061143.Q
+  private_defined_contribution_pensions:
+  - FU573061133.Q
+  state_local_employee_defined_benefit_pensions:
+  - FU223061143.Q
+  life_insurers:
+  - FU543061105.Q
+  property_casualty_insurers:
+  - FU513061105.Q
+  households_nonprofits:
+  - FU153061105.Q
+  state_local_governments:
+  - FU213061103.Q
+  nonfinancial_corporates:
+  - FU103061103.Q
+  nonfinancial_noncorporate_business:
+  - FU113061003.Q
+  other_financial_business:
+  - FU503061123.Q
+  holding_companies:
+  - FU733061103.Q
+  government_sponsored_enterprises:
+  - FU403061105.Q
+  asset_backed_securities_issuers:
+  - FU673061103.Q
+  credit_unions_marketable_proxy:
+  - FU473061103.Q
+  - FU473061153.Q
+excluded_table_series:
+  FU313161105.Q:
+    description: Federal government; total marketable Treasury securities; liability
+    reason: Liability or nonmarketable memo series outside the holder denominator.
+  FU313161110.Q:
+    description: Federal government; total marketable Treasury bills; liability
+    reason: Liability or nonmarketable memo series outside the holder denominator.
+  FU313161275.Q:
+    description: Federal government; other marketable Treasury securities; liability
+    reason: Liability or nonmarketable memo series outside the holder denominator.
+  FU893061105.Q:
+    description: All sectors; Treasury securities; asset
+    reason: All-holder aggregate overlaps included leaves.
+  FU713061103.Q:
+    description: Monetary authority; total Treasury securities; asset
+    reason: Federal Reserve excluded from the non-Fed denominator.
+  FU713061113.Q:
+    description: Monetary authority; Treasury bills; asset
+    reason: Federal Reserve excluded from the non-Fed denominator.
+  FU713061125.Q:
+    description: Monetary authority; other Treasury securities, excluding Treasury bills; asset
+    reason: Federal Reserve excluded from the non-Fed denominator.
+  FU473061105.Q:
+    description: Credit unions; Treasury securities; asset
+    reason: 'Broad credit-union total excluded: the included two-series marketable proxy excludes the insurance
+      capitalization deposit.'
+  FU513061115.Q:
+    description: Property-casualty insurance companies; Treasury bills, including those held by U.S. residual
+      market reinsurers; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU513061125.Q:
+    description: Property-casualty insurance companies; other Treasury securities, including those held by
+      U.S. residual market reinsurers, excluding Treasury bills; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU543061115.Q:
+    description: Life insurance companies; Treasury bills, including those held by U.S. captive reinsurers;
+      asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU543061125.Q:
+    description: Life insurance companies; other Treasury securities, including those held by U.S. captive
+      reinsurers, excluding Treasury bills; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU573061105.Q:
+    description: Private pension funds; Treasury securities; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU343061105.Q:
+    description: Federal government pension funds; Treasury securities; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU633061110.Q:
+    description: Money market funds; Treasury bills; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU633061120.Q:
+    description: Money market funds; Other Treasury securities, excluding Treasury bills; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU653061113.Q:
+    description: Mutual funds; Treasury bills; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU653061125.Q:
+    description: Mutual funds; other Treasury securities, excluding Treasury bills (includes all Treasury securities
+      before 2010:Q4); asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU263061110.Q:
+    description: Rest of the world; Treasury bills and certificates; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU263061120.Q:
+    description: Rest of the world; other Treasury securities, excluding Treasury bills and certificates; asset
+    reason: Aggregate or instrument subcomponent overlaps the included holder leaves.
+  FU313169205.Q:
+    description: Federal government; total nonmarketable Treasury securities; liability
+    reason: Liability or nonmarketable memo series outside the holder denominator.
+supplement_series:
+  FU473061103.Q:
+    provider: fred
+    vintage: '2026-03-23'
+    units: Millions of U.S. Dollars, Not Seasonally Adjusted
+    url: https://fred.stlouisfed.org/series/BOGZ1FU473061103Q
+  FU473061153.Q:
+    provider: fred
+    vintage: '2026-03-23'
+    units: Millions of U.S. Dollars, Not Seasonally Adjusted
+    url: https://fred.stlouisfed.org/series/BOGZ1FU473061153Q
+holder_sector_relabels:
+  foreigners_official: foreigners_total
+holder_relabel_boundary: The base Z.1 panel combines all rest-of-world holders. The legacy official label does
+  not identify an official/private split.

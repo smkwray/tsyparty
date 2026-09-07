@@ -194,3 +194,12 @@ intervals, and p-values. Missing core controls are reported, and a partial set i
 not labeled as the full model. Quarterly gaps are rejected by the maturity-response
 estimator. These diagnostics require a separate evidence review before use as
 empirical findings.
+
+
+Frozen response inputs can be reconstructed with
+`python -m tsyparty.behavior.response_inputs --help` using
+`configs/response_input_sources.yml`. The builder preserves each FU source cell,
+requires complete requested quarters, checks primary table units and the exhaustive
+crosswalk, and records input hashes and the committed producer. Supplementary
+credit-union cells retain their own source and retrieval date. It never refreshes
+data or replaces missing observations with zero.
