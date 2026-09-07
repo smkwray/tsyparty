@@ -62,6 +62,13 @@ def _make_issuance_maturity_inputs(n_quarters: int = 24) -> tuple[pd.DataFrame, 
             bank_like = key.startswith("bank_") or key == "foreigners_total"
             transactions = (base + cycle * (3.0 if bank_like else -1.5)) * 1000.0
             sector_rows.append({"date": q_end, "sector_key": key, "transactions": transactions})
+    from tsyparty.behavior.issuance_maturity_response import DEFAULT_SECTOR_GROUPS
+
+    all_keys = {key for keys in DEFAULT_SECTOR_GROUPS.values() for key in keys}
+    observed = {row["sector_key"] for row in sector_rows}
+    for date in dates:
+        for key in all_keys.difference(observed):
+            sector_rows.append({"date": date, "sector_key": key, "transactions": 0.0})
     return pd.DataFrame(auction_rows), pd.DataFrame(sector_rows)
 
 
@@ -224,6 +231,9 @@ def test_cmd_holder_response_smoke(tmp_path):
         scale_bn=None,
         max_horizon=1,
         controls="",
+        context_file=None,
+        transaction_basis=None,
+        same_perimeter_total=True,
         out=str(out),
     )
     cmd_holder_response(args)
@@ -251,6 +261,7 @@ def test_cmd_issuance_maturity_response_smoke(tmp_path):
         fred_dir=str(tmp_path / "missing_fred"),
         control_universe=str(tmp_path / "missing_controls.csv"),
         no_factor_controls=True,
+        transaction_basis="FU_quarterly_millions",
         horizons="0,1",
         min_observations=8,
         out=str(out),
@@ -300,3 +311,37 @@ def test_cmd_enrich_foreign_smoke(tmp_path):
     enriched = pd.read_csv(out / "harmonized_panel_enriched.csv")
     assert "foreigners_private" in enriched["sector"].values
     assert (out / "enrichment_metadata.json").exists()
+
+
+def test_holder_cli_does_not_discover_context(tmp_path):
+    import json
+
+    from tsyparty.cli import cmd_holder_response
+
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    panel = _make_panel(16, derived)
+    panel.to_csv(derived / "harmonized_panel.csv", index=False)
+    shock = pd.DataFrame({"date": sorted(panel["date"].unique()), "ati_baseline_bn": [float(i % 4) for i in range(16)]})
+    shock.to_csv(tmp_path / "shock.csv", index=False)
+    (tmp_path / "interim").mkdir()
+    context = shock.rename(columns={"ati_baseline_bn": "net_public_supply"})
+    context["net_public_supply"] = [float(i * i % 7) for i in range(16)]
+    context.to_csv(tmp_path / "interim" / "debt_totals.csv", index=False)
+    args = argparse.Namespace(panel_file=None, derived=str(derived), shock=str(tmp_path / "shock.csv"),
+                              shock_col=None, scale_bn=None, max_horizon=1, controls="", context_file=None,
+                              transaction_basis=None, same_perimeter_total=False, out=str(tmp_path / "out"))
+    cmd_holder_response(args)
+    bundle = json.loads((tmp_path / "out" / "holder_response_bundle.json").read_text())
+    assert bundle["controls"] == [] and bundle["residual_method"] == "unavailable_no_total"
+    response = pd.read_csv(tmp_path / "out" / "holder_response_panel.csv")
+    assert response.query("sector == '_residual'")["outcome"].isna().all()
+    assert "net_public_supply" not in response
+    args.controls = "net_public_supply"
+    with pytest.raises(ValueError, match="context-file"):
+        cmd_holder_response(args)
+    args.context_file = str(tmp_path / "interim" / "debt_totals.csv")
+    cmd_holder_response(args)
+    response = pd.read_csv(tmp_path / "out" / "holder_response_panel.csv")
+    assert response.query("sector == '_residual'")["outcome"].isna().all()
+    assert "net_public_supply" in response

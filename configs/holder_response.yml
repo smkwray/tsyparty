@@ -11,9 +11,10 @@ shock:
 estimation:
   max_horizon_quarters: 4
   min_observations: 8
-  covariance: HC1
+  covariance: HAC
 
 outcomes:
+  transaction_basis: null # Required for transactions; no historical basis is assumed.
   preferred_transaction_columns:
     - transactions
     - treasury_transactions
@@ -27,6 +28,7 @@ sectors:
   exclude:
     - _discrepancy
   total_sector: _total
+  total_matches_holder_perimeter: false # Explicitly attest a same-clock/same-perimeter total before use.
   residual_sector: _residual
   policy_legs:
     - fed

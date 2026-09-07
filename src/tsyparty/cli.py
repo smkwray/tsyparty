@@ -622,9 +622,12 @@ def cmd_holder_response(args: argparse.Namespace) -> None:
         write_chart,
         write_outputs,
     )
-    from tsyparty.behavior.pipeline import build_behavior_context
 
     config = HolderResponseConfig.from_yaml()
+    if args.transaction_basis is not None:
+        config.transaction_basis = args.transaction_basis
+    if args.same_perimeter_total:
+        config.total_matches_holder_perimeter = True
     if args.shock_col:
         config.shock_col = args.shock_col
     if args.max_horizon is not None:
@@ -638,12 +641,12 @@ def cmd_holder_response(args: argparse.Namespace) -> None:
 
     controls = [c for c in (args.controls or "").split(",") if c]
     context = None
-    context_cols = sorted(set(controls + ["net_public_supply"]))
-    if context_cols:
-        from tsyparty.behavior.pipeline import SimilarityConfig
-
-        context_config = SimilarityConfig(x_cols=context_cols)
-        context = build_behavior_context(Path(args.derived).parent / "interim", config=context_config)
+    if controls:
+        if not args.context_file:
+            raise ValueError("Requested holder controls require explicit --context-file")
+        context = pd.read_csv(args.context_file, parse_dates=["date"])
+    elif args.context_file:
+        raise ValueError("--context-file requires explicitly requested --controls")
 
     result = run_holder_response(panel, shock, config=config, context=context, controls=controls)
     out = Path(args.out)
@@ -674,6 +677,8 @@ def cmd_issuance_maturity_response(args: argparse.Namespace) -> None:
     )
 
     config = IssuanceMaturityResponseConfig.from_yaml()
+    if args.transaction_basis is not None:
+        config.transaction_basis = args.transaction_basis
     if args.min_observations is not None:
         config.min_observations = int(args.min_observations)
     if args.no_factor_controls:
@@ -829,8 +834,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_holder.add_argument(
         "--controls",
         default="",
-        help="Comma-separated quarterly controls from interim context, e.g. net_public_supply,delta_soma",
+        help="Comma-separated quarterly controls from an explicit context CSV",
     )
+    p_holder.add_argument("--transaction-basis", choices=["FA_SAAR_millions", "FU_quarterly_millions", "prequarterized_billions"], default=None)
+    p_holder.add_argument("--context-file", default=None, help="Explicit quarterly control CSV; requires --controls")
+    p_holder.add_argument("--same-perimeter-total", action="store_true", help="Attest the input total has the same clock, basis and holder perimeter")
     p_holder.add_argument("--out", default="outputs/holder_response", help="Output directory")
     p_holder.set_defaults(func=cmd_holder_response)
 
@@ -858,6 +866,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Quarterly control universe, required unless --no-factor-controls is set",
     )
+    p_maturity.add_argument("--transaction-basis", choices=["FA_SAAR_millions", "FU_quarterly_millions", "prequarterized_billions"], default=None)
     p_maturity.add_argument("--no-factor-controls", action="store_true", help="Disable screened factor-control robustness")
     p_maturity.add_argument("--horizons", default="", help="Comma-separated horizons, e.g. 0,1,2,4")
     p_maturity.add_argument("--min-observations", type=int, default=None, help="Minimum observations per regression")

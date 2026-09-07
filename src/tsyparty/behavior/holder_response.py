@@ -18,6 +18,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 from tsyparty.baseline.flows import holdings_changes_from_levels
+from tsyparty.config import transaction_scale_to_quarterly_billions
 
 
 COEFFICIENT_COLUMNS = [
@@ -36,6 +37,10 @@ COEFFICIENT_COLUMNS = [
     "outcome_source",
     "controls",
     "claim_label",
+    "covariance",
+    "maxlags",
+    "transaction_basis",
+    "outcome_units",
 ]
 
 
@@ -47,7 +52,9 @@ class HolderResponseConfig:
     shock_scale_bn: float = 100.0
     max_horizon_quarters: int = 4
     min_observations: int = 8
-    covariance: str = "HC1"
+    covariance: str = "HAC"
+    transaction_basis: str | None = None
+    total_matches_holder_perimeter: bool = False
     preferred_transaction_columns: list[str] = field(
         default_factory=lambda: ["transactions", "treasury_transactions", "net_transactions", "net_flow"]
     )
@@ -73,7 +80,9 @@ class HolderResponseConfig:
             shock_scale_bn=float(shock.get("scale_bn", 100.0)),
             max_horizon_quarters=int(estimation.get("max_horizon_quarters", 4)),
             min_observations=int(estimation.get("min_observations", 8)),
-            covariance=estimation.get("covariance", "HC1"),
+            covariance=estimation.get("covariance", "HAC"),
+            transaction_basis=outcomes.get("transaction_basis"),
+            total_matches_holder_perimeter=sectors.get("total_matches_holder_perimeter", False),
             preferred_transaction_columns=outcomes.get(
                 "preferred_transaction_columns",
                 ["transactions", "treasury_transactions", "net_transactions", "net_flow"],
@@ -154,6 +163,11 @@ def build_response_panel(
     if config is None:
         config = HolderResponseConfig()
 
+    if type(config.total_matches_holder_perimeter) is not bool:
+        raise ValueError("total_matches_holder_perimeter must be a literal boolean")
+    if config.report_units != "billions":
+        raise ValueError("Holder response report_units must be billions")
+
     required = {"date", "sector"}
     missing = required.difference(panel.columns)
     if missing:
@@ -181,6 +195,15 @@ def build_response_panel(
     else:
         outcome_source = "reported_transactions"
 
+    if outcome_source == "reported_transactions":
+        scale = transaction_scale_to_quarterly_billions(config.transaction_basis)
+        if "transaction_basis" in work and not work["transaction_basis"].eq(config.transaction_basis).all():
+            raise ValueError("Mixed or conflicting transaction_basis in holder input")
+    else:
+        if config.panel_units not in {"millions", "billions"}:
+            raise ValueError("Holdings proxy panel_units must be millions or billions")
+        scale = 0.001 if config.panel_units == "millions" else 1.0
+    work[outcome_col] = pd.to_numeric(work[outcome_col], errors="raise") * scale
     excludes = set(config.exclude_sectors)
     total_frame = work[work["sector"] == config.total_sector].copy()
     sectors = work[~work["sector"].isin(excludes | {config.total_sector})].copy()
@@ -190,7 +213,7 @@ def build_response_panel(
         .rename(columns={outcome_col: "outcome"})
     )
 
-    residual = _build_residual_outcomes(total_frame, sector_outcomes, outcome_col, config, context)
+    residual = _build_residual_outcomes(total_frame, sector_outcomes, outcome_col, config)
     residual_method = str(residual.attrs.get("residual_method", "unavailable_no_total"))
     sector_outcomes = pd.concat([sector_outcomes, residual], ignore_index=True)
 
@@ -201,6 +224,8 @@ def build_response_panel(
         merged = merged.merge(ctx, on="date", how="left")
 
     merged["outcome_source"] = outcome_source
+    merged["transaction_basis"] = config.transaction_basis if outcome_source == "reported_transactions" else "not_applicable_holdings_change"
+    merged["outcome_units"] = "quarterly_billions"
     merged["sector_role"] = np.where(
         merged["sector"].isin(config.policy_legs),
         "policy_leg",
@@ -223,25 +248,20 @@ def _build_residual_outcomes(
     sector_outcomes: pd.DataFrame,
     outcome_col: str,
     config: HolderResponseConfig,
-    context: pd.DataFrame | None,
 ) -> pd.DataFrame:
     sector_sum = sector_outcomes.groupby("date", as_index=False)["outcome"].sum(min_count=1)
 
-    if not total_frame.empty and outcome_col in total_frame.columns:
+    complete = sector_outcomes.groupby("date")["outcome"].count().eq(sector_outcomes["sector"].nunique())
+    sector_sum.loc[~sector_sum["date"].map(complete), "outcome"] = np.nan
+    if config.total_matches_holder_perimeter and not total_frame.empty and outcome_col in total_frame.columns:
         total = (
             total_frame.groupby("date", as_index=False)[outcome_col]
             .sum(min_count=1)
             .rename(columns={outcome_col: "total_outcome"})
         )
-        residual = total.merge(sector_sum, on="date", how="left").fillna({"outcome": 0.0})
+        residual = total.merge(sector_sum, on="date", how="left")
         residual["outcome"] = residual["total_outcome"] - residual["outcome"]
         method = "source_total"
-    elif context is not None and "net_public_supply" in context.columns:
-        ctx = context[["date", "net_public_supply"]].copy()
-        ctx["date"] = pd.to_datetime(ctx["date"])
-        residual = ctx.merge(sector_sum, on="date", how="left").fillna({"outcome": 0.0})
-        residual["outcome"] = residual["net_public_supply"] - residual["outcome"]
-        method = "context_net_public_supply"
     else:
         residual = sector_sum[["date"]].copy()
         residual["outcome"] = np.nan
@@ -269,6 +289,8 @@ def estimate_holder_response(
     if missing:
         raise ValueError(f"Response panel missing columns: {sorted(missing)}")
 
+    if config.covariance != "HAC":
+        raise ValueError("Holder overlapping horizons require covariance=HAC")
     rows: list[dict[str, Any]] = []
     for sector, group in response_panel.sort_values("date").groupby("sector", observed=True):
         base = group.reset_index(drop=True).copy()
@@ -313,11 +335,11 @@ def _estimate_one(
 ) -> dict[str, Any]:
     y = frame["cumulative_outcome"].astype(float)
     x = sm.add_constant(frame[[config.shock_col, *controls]].astype(float), has_constant="add")
-    fit = sm.OLS(y, x).fit(cov_type=config.covariance)
+    fit = sm.OLS(y, x).fit(cov_type="HAC", cov_kwds={"maxlags": max(horizon, 1)})
     coef = float(fit.params[config.shock_col])
     se = float(fit.bse[config.shock_col])
-    response = _convert_response_units(coef * config.shock_scale_bn, config)
-    std_error = _convert_response_units(se * config.shock_scale_bn, config)
+    response = coef * config.shock_scale_bn
+    std_error = se * config.shock_scale_bn
     return {
         "sector": sector,
         "horizon": int(horizon),
@@ -330,10 +352,17 @@ def _estimate_one(
         "p_value": float(fit.pvalues[config.shock_col]),
         "n_obs": int(fit.nobs),
         "r_squared": float(fit.rsquared),
-        "outcome": f"{horizon + 1}q_cumulative_treasury_transaction_flow",
+        "outcome": f"{horizon + 1}q_cumulative_" + (
+            "treasury_transaction_flow" if "outcome_source" in base and base["outcome_source"].iloc[0] == "reported_transactions"
+            else "treasury_holdings_change_proxy"
+        ),
         "outcome_source": str(base["outcome_source"].iloc[0]) if "outcome_source" in base.columns else "",
         "controls": ",".join(controls),
         "claim_label": config.claim_label,
+        "covariance": "HAC",
+        "maxlags": max(horizon, 1),
+        "transaction_basis": str(base["transaction_basis"].iloc[0]) if "transaction_basis" in base else config.transaction_basis,
+        "outcome_units": "quarterly_billions",
     }
 
 
@@ -357,17 +386,18 @@ def _empty_coefficient_row(
         "p_value": np.nan,
         "n_obs": int(n_obs),
         "r_squared": np.nan,
-        "outcome": f"{horizon + 1}q_cumulative_treasury_transaction_flow",
+        "outcome": f"{horizon + 1}q_cumulative_" + (
+            "treasury_transaction_flow" if "outcome_source" in base and base["outcome_source"].iloc[0] == "reported_transactions"
+            else "treasury_holdings_change_proxy"
+        ),
         "outcome_source": str(base["outcome_source"].iloc[0]) if "outcome_source" in base.columns else "",
         "controls": ",".join(controls),
         "claim_label": config.claim_label,
+        "covariance": "HAC",
+        "maxlags": max(horizon, 1),
+        "transaction_basis": str(base["transaction_basis"].iloc[0]) if "transaction_basis" in base else config.transaction_basis,
+        "outcome_units": "quarterly_billions",
     }
-
-
-def _convert_response_units(value: float, config: HolderResponseConfig) -> float:
-    if config.panel_units == "millions" and config.report_units == "billions":
-        return float(value / 1000.0)
-    return float(value)
 
 
 def run_holder_response(
@@ -447,7 +477,12 @@ def write_outputs(
         "residual_method": result.residual_method,
         "controls": result.controls,
         "headline_horizon": config.max_horizon_quarters,
-        "report_units": config.report_units,
+        "report_units": "billions",
+        "transaction_basis": config.transaction_basis if result.outcome_source == "reported_transactions" else "not_applicable_holdings_change",
+        "holdings_input_units": config.panel_units,
+        "total_matches_holder_perimeter": config.total_matches_holder_perimeter,
+        "covariance": "HAC",
+        "maxlags_by_horizon": {str(h): max(h, 1) for h in range(config.max_horizon_quarters + 1)},
         "files_written": [
             "holder_response_panel.csv",
             "sector_response_coefficients.csv",

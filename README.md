@@ -151,7 +151,7 @@ src/tsyparty/
   viz/            # Chart generation
   cli.py          # CLI entry points
 configs/          # Sector, source, inference, and instrument configs
-tests/            # 127 tests
+tests/            # Unit, contract, and CLI checks
 data/             # Raw, interim, and derived data (gitignored)
 outputs/          # Charts, CSVs, and inference results (gitignored)
 ```
@@ -166,8 +166,31 @@ pytest tests/ -v
 
 MIT
 
-The response commands require explicit input files. For factor robustness, supply
-`--control-universe`; `--no-factor-controls` explicitly omits that tier. Missing
-core controls are reported, and a partial set is not labeled as the full model.
-Quarterly gaps are rejected by the maturity-response estimator. These diagnostics
-require a separate evidence review before use as empirical findings.
+Holder response requires an explicit `--shock` file and uses `--panel-file` when
+provided, otherwise `harmonized_panel.csv` under `--derived`. Requested `--controls`
+require an explicit `--context-file` CSV with a date column. No debt context is
+discovered automatically. A residual is available only with `--same-perimeter-total`,
+which attests that the panel's total has the same holder perimeter, clock, and
+transaction basis. Broad public debt changes cannot define that residual.
+
+Both response commands require an explicit `--transaction-basis` for transaction
+inputs: `FA_SAAR_millions` divides annualized millions by 4000,
+`FU_quarterly_millions` divides quarterly millions by 1000, and
+`prequarterized_billions` uses the supplied quarterly billions unchanged. Shipped
+configuration leaves the basis unset; it does not certify historical inputs.
+Holdings-change proxies use separate holdings units and are labeled as proxies in
+coefficient rows. Holder cumulative horizons use HAC with `maxlags=max(horizon,1)`.
+
+Maturity outcomes measure shares of **non-Fed positive net acquisition**, not shares
+of Treasury issuance. The configured included groups and excluded keys exhaust the
+input crosswalk. Unknown keys, overlapping mappings, and missing included keys in
+any quarter fail before shares are built; an absent row is not an observed zero.
+The bundle records included groups, exclusions, and quarter coverage.
+
+For factor robustness, supply `--control-universe`; `--no-factor-controls`
+explicitly omits that tier. Same-sample screening and factor extraction make the
+factor tier exploratory: it reports point estimates and omits standard errors,
+intervals, and p-values. Missing core controls are reported, and a partial set is
+not labeled as the full model. Quarterly gaps are rejected by the maturity-response
+estimator. These diagnostics require a separate evidence review before use as
+empirical findings.

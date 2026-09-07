@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+from tsyparty.config import transaction_scale_to_quarterly_billions
+
 
 DEFAULT_SECTOR_GROUPS = {
     "Banks": ["bank_us_chartered", "bank_foreign_banking_offices_us", "bank_us_affiliated_areas"],
@@ -61,6 +63,12 @@ class IssuanceMaturityResponseConfig:
     horizons: list[int] = field(default_factory=lambda: [0, 1, 2, 4])
     share_scale: float = 100.0
     min_positive_absorption_bn: float = 1.0
+    transaction_basis: str | None = None
+    denominator_perimeter: str = "non_fed_positive_net_acquisition"
+    sector_groups: dict[str, list[str]] = field(default_factory=lambda: {
+        label: list(keys) for label, keys in DEFAULT_SECTOR_GROUPS.items()
+    })
+    excluded_sector_keys: list[str] = field(default_factory=lambda: ["fed", "_total", "_discrepancy"])
     core_controls: list[str] = field(
         default_factory=lambda: [
             "issuance_volume_gap_bn",
@@ -96,6 +104,10 @@ class IssuanceMaturityResponseConfig:
             horizons=[int(item) for item in outcomes.get("horizons", [0, 1, 2, 4])],
             share_scale=float(outcomes.get("share_scale", 100.0)),
             min_positive_absorption_bn=float(outcomes.get("min_positive_absorption_bn", 1.0)),
+            transaction_basis=outcomes.get("transaction_basis"),
+            denominator_perimeter=outcomes.get("denominator_perimeter", "non_fed_positive_net_acquisition"),
+            sector_groups=outcomes.get("sector_groups", DEFAULT_SECTOR_GROUPS),
+            excluded_sector_keys=outcomes.get("excluded_sector_keys", ["fed", "_total", "_discrepancy"]),
             core_controls=controls.get("core", []),
             factor_controls_enabled=bool(factors.get("enabled", True)),
             k_grid=[int(item) for item in factors.get("k_grid", [100, 200, 300])],
@@ -182,24 +194,57 @@ def build_issuance_maturity_treatment(
 def build_sector_flows(
     z1_sector_panel: pd.DataFrame,
     sector_groups: dict[str, list[str]] | None = None,
+    *,
+    transaction_basis: str | None = None,
+    excluded_sector_keys: list[str] | None = None,
+    denominator_perimeter: str = "non_fed_positive_net_acquisition",
 ) -> pd.DataFrame:
-    """Aggregate Z.1 Treasury transactions into reporting sectors."""
-    if sector_groups is None:
-        sector_groups = DEFAULT_SECTOR_GROUPS
+    """Build a closed, explicitly non-Fed quarterly transaction denominator."""
+    scale = transaction_scale_to_quarterly_billions(transaction_basis)
+    if denominator_perimeter != "non_fed_positive_net_acquisition":
+        raise ValueError("Unsupported denominator_perimeter; configure the explicit non-Fed perimeter")
+    groups = DEFAULT_SECTOR_GROUPS if sector_groups is None else sector_groups
+    excluded = ["fed", "_total", "_discrepancy"] if excluded_sector_keys is None else excluded_sector_keys
+    included = [key for keys in groups.values() for key in keys]
+    all_keys = included + excluded
+    if not groups or any(not keys for keys in groups.values()) or len(all_keys) != len(set(all_keys)):
+        raise ValueError("Sector crosswalk overlap or empty included group")
+    if "fed" not in excluded:
+        raise ValueError("The non-Fed denominator must explicitly exclude fed")
     required = {"date", "sector_key", "transactions"}
     missing = required.difference(z1_sector_panel.columns)
     if missing:
         raise ValueError(f"Z.1 sector panel missing columns: {sorted(missing)}")
     z1 = z1_sector_panel.copy()
-    z1["date"] = pd.to_datetime(z1["date"])
-    rows: list[pd.DataFrame] = []
-    for label, keys in sector_groups.items():
-        sub = z1[z1["sector_key"].isin(keys)]
-        grouped = sub.groupby("date", as_index=False)["transactions"].sum(min_count=1)
-        grouped["sector"] = label
-        grouped["transactions_bn"] = grouped["transactions"] / 1000.0
-        rows.append(grouped[["date", "sector", "transactions_bn"]])
-    return pd.concat(rows, ignore_index=True).sort_values(["date", "sector"]).reset_index(drop=True)
+    if z1.empty or z1[list(required)].isna().any().any():
+        raise ValueError("Sector coverage requires nonmissing transaction rows")
+    unknown = set(z1["sector_key"]).difference(all_keys)
+    if unknown:
+        raise ValueError(f"Unmapped sector keys: {sorted(unknown)}")
+    if "transaction_basis" in z1 and not z1["transaction_basis"].eq(transaction_basis).all():
+        raise ValueError("Mixed or conflicting transaction_basis in sector input")
+    z1["date"] = pd.to_datetime(z1["date"]).dt.to_period("Q").dt.to_timestamp("Q")
+    if z1.duplicated(["date", "sector_key"]).any():
+        raise ValueError("Duplicate quarter-sector transaction rows")
+    z1["transactions"] = pd.to_numeric(z1["transactions"], errors="raise")
+    if not np.isfinite(z1["transactions"]).all():
+        raise ValueError("Nonfinite sector transactions")
+    coverage = []
+    for date, quarter in z1.groupby("date"):
+        absent = set(included).difference(quarter["sector_key"])
+        if absent:
+            raise ValueError(f"Incomplete denominator coverage at {date.date()}: {sorted(absent)}")
+        coverage.append({"quarter": str(date.to_period("Q")), "status": "complete", "included_keys": len(included)})
+    mapping = {key: label for label, keys in groups.items() for key in keys}
+    work = z1[z1["sector_key"].isin(included)].copy()
+    work["sector"] = work["sector_key"].map(mapping)
+    work["transactions_bn"] = work["transactions"] * scale
+    flows = work.groupby(["date", "sector"], as_index=False)["transactions_bn"].sum(min_count=1)
+    flows["transaction_basis"] = transaction_basis
+    flows["denominator_perimeter"] = denominator_perimeter
+    flows.attrs["coverage"] = {"included_groups": groups, "excluded_sector_keys": excluded,
+                              "unmapped_row_count": 0, "quarter_coverage": coverage}
+    return flows
 
 
 def build_outcome_panel(
@@ -208,50 +253,61 @@ def build_outcome_panel(
     config: IssuanceMaturityResponseConfig,
 ) -> pd.DataFrame:
     """Create sector and aggregate absorption-share outcomes."""
-    wide = sector_flows.pivot_table(index="date", columns="sector", values="transactions_bn", aggfunc="sum").sort_index()
-    sectors = list(wide.columns)
+    wide = sector_flows.pivot(index="date", columns="sector", values="transactions_bn").sort_index()
+    sectors = list(config.sector_groups)
+    if set(wide.columns) != set(sectors) or wide.isna().any().any():
+        raise ValueError("Incomplete denominator group coverage; missing flows are not zero")
+    if not {"Banks", "Foreign holders", "Dealers"}.issubset(sectors):
+        raise ValueError("Aggregate outcomes require Banks, Foreign holders and Dealers groups")
+    transaction_scale_to_quarterly_billions(config.transaction_basis)
+    if not sector_flows["transaction_basis"].eq(config.transaction_basis).all():
+        raise ValueError("Conflicting transaction_basis in grouped flows")
+    if not sector_flows["denominator_perimeter"].eq(config.denominator_perimeter).all():
+        raise ValueError("Conflicting denominator_perimeter in grouped flows")
+    if not np.isfinite(wide.to_numpy(dtype=float)).all():
+        raise ValueError("Nonfinite denominator flows")
     rows: list[dict[str, Any]] = []
     for date, values in wide.iterrows():
         positive_total = float(values.clip(lower=0).sum())
         for sector in sectors:
-            flow = float(values.get(sector, np.nan))
+            flow = float(values[sector])
             share = np.nan if positive_total < config.min_positive_absorption_bn else flow / positive_total * config.share_scale
             rows.append(
                 {
                     "date": date,
-                    "outcome": f"{sector} absorption share",
+                    "outcome": f"{sector} share of non-Fed positive net acquisition",
                     "value": share,
                     "flow_bn": flow,
                     "positive_absorption_bn": positive_total,
                 }
             )
-        bank_foreign_flow = float(values.get("Banks", 0.0) + values.get("Foreign holders", 0.0))
+        bank_foreign_flow = float(values["Banks"] + values["Foreign holders"])
         bank_foreign_share = np.nan if positive_total < config.min_positive_absorption_bn else bank_foreign_flow / positive_total * config.share_scale
         domestic_nonbank_sectors = [
             sector for sector in sectors
             if sector not in {"Banks", "Foreign holders", "Dealers"}
         ]
-        money_nonbank_flow = float(sum(values.get(sector, 0.0) for sector in domestic_nonbank_sectors))
+        money_nonbank_flow = float(sum(values[sector] for sector in domestic_nonbank_sectors))
         money_nonbank_share = np.nan if positive_total < config.min_positive_absorption_bn else money_nonbank_flow / positive_total * config.share_scale
         rows.extend(
             [
                 {
                     "date": date,
-                    "outcome": "Banks + foreign holders absorption share",
+                    "outcome": "Banks + foreign holders share of non-Fed positive net acquisition",
                     "value": bank_foreign_share,
                     "flow_bn": bank_foreign_flow,
                     "positive_absorption_bn": positive_total,
                 },
                 {
                     "date": date,
-                    "outcome": "Money funds + domestic nonbanks absorption share",
+                    "outcome": "Money funds + domestic nonbanks share of non-Fed positive net acquisition",
                     "value": money_nonbank_share,
                     "flow_bn": money_nonbank_flow,
                     "positive_absorption_bn": positive_total,
                 },
                 {
                     "date": date,
-                    "outcome": "Banks + foreign minus money/domestic share",
+                    "outcome": "Banks + foreign minus money/domestic share of non-Fed positive net acquisition",
                     "value": bank_foreign_share - money_nonbank_share,
                     "flow_bn": bank_foreign_flow - money_nonbank_flow,
                     "positive_absorption_bn": positive_total,
@@ -259,6 +315,9 @@ def build_outcome_panel(
             ]
         )
     panel = pd.DataFrame(rows)
+    panel["denominator_perimeter"] = config.denominator_perimeter
+    panel["transaction_basis"] = config.transaction_basis
+    panel["flow_units"] = "quarterly_billions"
     treatment_cols = ["date", "quarter", "issuance_wam_gap_years", "issuance_volume_gap_bn", "issuance_wam_years", "bill_share"]
     return panel.merge(treatment[treatment_cols], on="date", how="inner").sort_values(["outcome", "date"]).reset_index(drop=True)
 
@@ -383,7 +442,8 @@ def _fit_lp(
     except np.linalg.LinAlgError:
         return None
     beta = float(fit.params[treatment_col])
-    se = float(fit.bse[treatment_col])
+    selected = model.startswith("factor_controls_k")
+    se = np.nan if selected else float(fit.bse[treatment_col])
     return {
         "model": model,
         "outcome": outcome,
@@ -393,12 +453,16 @@ def _fit_lp(
         "std_error": se,
         "ci_low": beta - 1.96 * se,
         "ci_high": beta + 1.96 * se,
-        "p_value": float(fit.pvalues[treatment_col]),
+        "p_value": np.nan if selected else float(fit.pvalues[treatment_col]),
         "n_obs": int(fit.nobs),
         "r_squared": float(fit.rsquared),
         "controls": ",".join(control_cols),
-        "covariance": "Newey-West/HAC",
-        "dependent_variable": "cumulative sector net transactions / cumulative positive absorption",
+        "covariance": "not_reported_post_selection" if selected else "Newey-West/HAC",
+        "maxlags": max(horizon, 1),
+        "inference_status": "exploratory_post_selection" if selected else "fixed_specification_HAC",
+        "transaction_basis": frame["transaction_basis"].iloc[0] if "transaction_basis" in frame else None,
+        "denominator_perimeter": "non_fed_positive_net_acquisition",
+        "dependent_variable": "cumulative sector net transactions / cumulative non-Fed positive net acquisition",
     }
 
 
@@ -488,7 +552,11 @@ def estimate_placebos(
                     "r_squared": float(fit.rsquared),
                     "controls": ",".join(core_controls),
                     "covariance": "Newey-West/HAC",
-                    "dependent_variable": "pre-treatment cumulative sector absorption share",
+                    "maxlags": max(lead, 1),
+                    "inference_status": "fixed_specification_HAC",
+                    "transaction_basis": config.transaction_basis,
+                    "denominator_perimeter": config.denominator_perimeter,
+                    "dependent_variable": "pre-treatment cumulative sector share of non-Fed positive net acquisition",
                 }
             )
     return pd.DataFrame(rows)
@@ -517,10 +585,10 @@ def build_factor_controls(
     feature_ids = [c for c in universe.columns if c != "quarter"]
     y_cols = [
         c for c in [
-            "Banks absorption share",
-            "Foreign holders absorption share",
-            "Banks + foreign holders absorption share",
-            "Money funds absorption share",
+            "Banks share of non-Fed positive net acquisition",
+            "Foreign holders share of non-Fed positive net acquisition",
+            "Banks + foreign holders share of non-Fed positive net acquisition",
+            "Money funds share of non-Fed positive net acquisition",
         ]
         if c in merged.columns
     ]
@@ -568,7 +636,9 @@ def run_issuance_maturity_response(
     control_universe_path: str | Path | None = None,
 ) -> IssuanceMaturityResponseResult:
     treatment = build_issuance_maturity_treatment(auctions, config)
-    flows = build_sector_flows(z1_sector_panel)
+    flows = build_sector_flows(z1_sector_panel, config.sector_groups,
+        transaction_basis=config.transaction_basis, excluded_sector_keys=config.excluded_sector_keys,
+        denominator_perimeter=config.denominator_perimeter)
     outcomes = build_outcome_panel(flows, treatment, config)
     controls = build_core_controls(fred_dir) if fred_dir is not None else pd.DataFrame()
     if not controls.empty:
@@ -582,7 +652,13 @@ def run_issuance_maturity_response(
     placebo = estimate_placebos(outcomes, config, controls=controls)
     design_summary = {
         "treatment": "auction-weighted issuance WAM gap versus trailing expectation",
-        "outcome": "sector Treasury transaction absorption shares",
+        "outcome": "sector shares of non-Fed positive net acquisition; not shares of total Treasury issuance",
+        "denominator_perimeter": config.denominator_perimeter,
+        "transaction_basis": config.transaction_basis,
+        "flow_units": "quarterly_billions",
+        **flows.attrs["coverage"],
+        "covariance": "Newey-West/HAC with maxlags=max(horizon,1) for fixed models",
+        "selected_factor_inference": "exploratory_post_selection: screening and factor extraction use the estimation sample; point estimates only",
         "share_units": "percentage points",
         "sample": {
             "start": str(pd.Timestamp(outcomes["date"].min()).date()) if not outcomes.empty else "",
@@ -680,34 +756,34 @@ def write_charts(result: IssuanceMaturityResponseResult, out_dir: str | Path) ->
             & (estimates["horizon"] == max(result.estimates["horizon"]))
             & estimates["outcome"].isin(
                 [
-                    "Banks absorption share",
-                    "Foreign holders absorption share",
-                    "Money funds absorption share",
-                    "Mutual funds & ETFs absorption share",
-                    "Dealers absorption share",
-                    "Pensions & insurers absorption share",
-                    "Households & nonprofits absorption share",
-                    "State/local governments absorption share",
-                    "Nonfinancial businesses absorption share",
-                    "Other domestic financials absorption share",
+                    "Banks share of non-Fed positive net acquisition",
+                    "Foreign holders share of non-Fed positive net acquisition",
+                    "Money funds share of non-Fed positive net acquisition",
+                    "Mutual funds & ETFs share of non-Fed positive net acquisition",
+                    "Dealers share of non-Fed positive net acquisition",
+                    "Pensions & insurers share of non-Fed positive net acquisition",
+                    "Households & nonprofits share of non-Fed positive net acquisition",
+                    "State/local governments share of non-Fed positive net acquisition",
+                    "Nonfinancial businesses share of non-Fed positive net acquisition",
+                    "Other domestic financials share of non-Fed positive net acquisition",
                 ]
             )
         ].copy()
         order = [
-            "Banks absorption share",
-            "Foreign holders absorption share",
-            "Money funds absorption share",
-            "Mutual funds & ETFs absorption share",
-            "Dealers absorption share",
-            "Pensions & insurers absorption share",
-            "Households & nonprofits absorption share",
-            "State/local governments absorption share",
-            "Nonfinancial businesses absorption share",
-            "Other domestic financials absorption share",
+            "Banks share of non-Fed positive net acquisition",
+            "Foreign holders share of non-Fed positive net acquisition",
+            "Money funds share of non-Fed positive net acquisition",
+            "Mutual funds & ETFs share of non-Fed positive net acquisition",
+            "Dealers share of non-Fed positive net acquisition",
+            "Pensions & insurers share of non-Fed positive net acquisition",
+            "Households & nonprofits share of non-Fed positive net acquisition",
+            "State/local governments share of non-Fed positive net acquisition",
+            "Nonfinancial businesses share of non-Fed positive net acquisition",
+            "Other domestic financials share of non-Fed positive net acquisition",
         ]
         subset["order"] = subset["outcome"].map({name: idx for idx, name in enumerate(order)})
         subset = subset.sort_values("order")
-        labels = [x.replace(" absorption share", "") for x in subset["outcome"]]
+        labels = [x.replace(" share of non-Fed positive net acquisition", "") for x in subset["outcome"]]
         x = subset["beta_pp_per_1y"]
         xerr = np.vstack([(x - subset["ci_low"]).clip(lower=0), (subset["ci_high"] - x).clip(lower=0)])
         colors = [red if "Banks" in label else blue if "Foreign" in label else green if "Money" in label else gray for label in labels]
@@ -722,7 +798,7 @@ def write_charts(result: IssuanceMaturityResponseResult, out_dir: str | Path) ->
             fontsize=10.5,
             color=muted,
         )
-        ax.set_xlabel("Percentage points of Treasury absorption")
+        ax.set_xlabel("Percentage points of non-Fed positive net acquisition")
         ax.grid(axis="x", color="#E5DED2", linewidth=0.8)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
@@ -730,9 +806,6 @@ def write_charts(result: IssuanceMaturityResponseResult, out_dir: str | Path) ->
         path = out / "sector_absorption_share_response.png"
         fig.subplots_adjust(left=0.24, right=0.98, bottom=0.10, top=0.88)
         fig.savefig(path, dpi=220)
-        split_path = out / "sector_absorption_share_response_split.png"
-        fig.savefig(split_path, dpi=220)
         plt.close(fig)
         paths["sector_response_chart"] = path
-        paths["sector_response_split_chart"] = split_path
     return paths
