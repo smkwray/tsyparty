@@ -261,6 +261,7 @@ def test_cmd_issuance_maturity_response_smoke(tmp_path):
         fred_dir=str(tmp_path / "missing_fred"),
         control_universe=str(tmp_path / "missing_controls.csv"),
         no_factor_controls=True,
+        sample_start_quarter=None,
         transaction_basis="FU_quarterly_millions",
         horizons="0,1",
         min_observations=8,
