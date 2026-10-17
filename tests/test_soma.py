@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from tsyparty.context.soma import parse_soma_json
-from tsyparty.context.weekly_series import validate_weekly_series, quarter_end_aggregate, REQUIRED_COLUMNS
+from tsyparty.context.weekly_series import validate_weekly_series, quarter_end_aggregate
 
 
 def _make_soma_json(tmp_path, n_weeks=52):

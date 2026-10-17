@@ -144,7 +144,7 @@ def test_write_outputs_creates_files(tmp_path):
     """write_outputs must create counterparty_flows.csv and quarter_diagnostics.json."""
     panel = _make_panel(12)
     result = run_inference(panel)
-    paths = write_outputs(result, tmp_path / "out")
+    _paths = write_outputs(result, tmp_path / "out")
     if not result.flows.empty:
         assert (tmp_path / "out" / "counterparty_flows.csv").exists()
     if result.quarter_diagnostics:
@@ -203,7 +203,7 @@ def test_write_outputs_writes_baselines(tmp_path):
     """write_outputs must create baseline_matrices.csv when baselines exist."""
     panel = _make_panel(12)
     result = run_inference(panel)
-    paths = write_outputs(result, tmp_path / "out")
+    _paths = write_outputs(result, tmp_path / "out")
     if result.baselines:
         assert (tmp_path / "out" / "baseline_matrices.csv").exists()
         baselines_df = pd.read_csv(tmp_path / "out" / "baseline_matrices.csv")
@@ -297,7 +297,7 @@ def test_write_outputs_writes_skip_records(tmp_path):
     """write_outputs should write skip_records.json when skips exist."""
     panel = _make_panel(12)
     result = run_inference(panel)
-    paths = write_outputs(result, tmp_path / "out")
+    _paths = write_outputs(result, tmp_path / "out")
     if result.skip_records:
         skip_path = tmp_path / "out" / "skip_records.json"
         assert skip_path.exists()

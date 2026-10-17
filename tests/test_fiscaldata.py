@@ -2,7 +2,6 @@
 
 import json
 
-import pandas as pd
 import pytest
 
 from tsyparty.ingest.fiscaldata import parse_debt_to_penny

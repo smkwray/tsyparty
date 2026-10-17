@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from tsyparty.ingest.fed import download_z1_current, download_direct_source, download_h41_pdf
+from tsyparty.ingest.fed import download_z1_current, download_direct_source
 from tsyparty.ingest.treasury import (
     download_direct_treasury_source,
     download_fiscaldata_api,

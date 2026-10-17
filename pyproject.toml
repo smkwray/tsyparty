@@ -48,3 +48,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff.lint]
+# Explicit correctness checks independent of Ruff version defaults.
+select = ["E4", "E7", "E9", "F"]

@@ -1,4 +1,4 @@
-from tsyparty.cli import cmd_example, build_parser
+from tsyparty.cli import build_parser
 
 if __name__ == "__main__":
     parser = build_parser()

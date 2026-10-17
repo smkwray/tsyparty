@@ -1,7 +1,6 @@
 """Tests for harmonized panel builder and reconciliation."""
 
 import pandas as pd
-import pytest
 
 from tsyparty.reconcile.harmonize import (
     HarmonizedPanel,

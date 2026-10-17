@@ -3,10 +3,8 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Iterable
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup
 
 from tsyparty.utils_http import fetch_binary, soup
 

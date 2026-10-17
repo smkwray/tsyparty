@@ -55,3 +55,10 @@ CLAUDE.md
 .claude/
 .cursor/
 .worktrees/
+
+# Private local configuration
+.env.*
+.private-denylist
+.*-private-denylist
+venv/
+/.env.example

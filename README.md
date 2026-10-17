@@ -10,7 +10,7 @@ To serve locally with your own pipeline data:
 python3 -m http.server 8899   # then open http://localhost:8899/site/index.html
 ```
 
-`tsyparty` builds a reproducible, public-data-only map of who holds U.S. Treasury securities, how holdings flow between sectors, and which sectors behave most similarly. It answers four questions:
+`tsyparty` builds a reproducible, public-data-only map of who holds US Treasury securities, how holdings flow between sectors, and which sectors behave most similarly. It answers four questions:
 
 1. When banks add Treasury holdings, who are the most likely **net sellers**?
 2. When foreigners add Treasury holdings, who are the most likely **net sellers**?
@@ -20,7 +20,12 @@ python3 -m http.server 8899   # then open http://localhost:8899/site/index.html
 ## Installation
 
 ```bash
-pip install -e ".[dev]"
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python -B -m pytest -q
+ruff check .
+tsyparty --help
 ```
 
 Requires Python 3.11+.
@@ -63,16 +68,19 @@ tsyparty infer --derived data/derived --out outputs/inference
 # Behavior similarity
 tsyparty similarity --derived data/derived --out outputs/similarity
 
+# Response examples assume FU transactions in quarterly millions.
 # Holder-response mechanism artifacts
 tsyparty holder-response \
-  --derived data/derived \
+  --panel-file path/to/sector_transactions_FU_millions.csv \
+  --transaction-basis FU_quarterly_millions \
   --shock path/to/qrawatch_maturity_tilt.csv \
   --out outputs/holder_response
 
 # Issuance maturity response for descriptive mechanism analysis
 tsyparty issuance-maturity-response \
   --auction-file path/to/auctions.csv \
-  --sector-panel path/to/sector_panel.csv \
+  --sector-panel path/to/sector_transactions_FU_millions.csv \
+  --transaction-basis FU_quarterly_millions \
   --no-factor-controls \
   --out outputs/holder_response/issuance_maturity_response
 ```
@@ -162,9 +170,7 @@ outputs/          # Charts, CSVs, and inference results (gitignored)
 pytest tests/ -v
 ```
 
-## License
-
-MIT
+## Response-module inputs and limits
 
 Holder response requires an explicit `--shock` file and uses `--panel-file` when
 provided, otherwise `harmonized_panel.csv` under `--derived`. Requested `--controls`
@@ -208,3 +214,7 @@ The issuance-maturity command accepts `--sample-start-quarter YYYYQn` for an exp
 estimation and factor-screening sample. Treatment expectations and lagged controls
 retain earlier input history. This option does not fill missing control quarters;
 calendar-contiguity checks still apply to every fitted sample.
+
+## License
+
+MIT.

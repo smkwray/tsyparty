@@ -11,7 +11,6 @@ import json
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from tsyparty.infer.pipeline import InferenceConfig, run_inference, write_outputs as infer_write
 from tsyparty.behavior.pipeline import (
@@ -52,7 +51,7 @@ class TestInferenceContract:
         result = run_inference(panel)
         config = InferenceConfig()
         out = tmp_path / "infer"
-        paths = infer_write(result, out, config=config)
+        _paths = infer_write(result, out, config=config)
 
         expected_files = {
             "counterparty_flows.csv",

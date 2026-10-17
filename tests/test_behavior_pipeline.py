@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from tsyparty.behavior.pipeline import (
     SimilarityConfig,
@@ -11,8 +10,6 @@ from tsyparty.behavior.pipeline import (
     build_features,
     run_similarity,
     write_outputs,
-    write_no_data_outputs,
-    write_charts,
 )
 
 
@@ -217,7 +214,7 @@ def test_write_outputs_creates_files(tmp_path):
     panel = _make_panel()
     result = run_similarity(panel)
     assert result is not None
-    paths = write_outputs(result, tmp_path / "out")
+    _paths = write_outputs(result, tmp_path / "out")
     assert (tmp_path / "out" / "sector_features.csv").exists()
     assert (tmp_path / "out" / "sector_distance_matrix.csv").exists()
     assert (tmp_path / "out" / "rolling_comovement.csv").exists()

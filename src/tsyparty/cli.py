@@ -485,7 +485,7 @@ def cmd_infer(args: argparse.Namespace) -> None:
         result, config, fwtw=fwtw, auction_allotments=auction, tic_foreign=tic_foreign,
     )
 
-    paths = write_outputs(result, out, config=config)
+    _paths = write_outputs(result, out, config=config)
 
     print(f"Counterparty inference: {len(result.flows)} flow entries across {result.quarters_processed} quarters ({result.quarters_skipped} skipped)")
 
@@ -530,7 +530,7 @@ def cmd_primary_market(args: argparse.Namespace) -> None:
     summary = primary_allocation_summary(allocation)
     if not summary.empty:
         summary.to_csv(out / "primary_allocation_summary.csv", index=False)
-        print(f"\nAverage primary-market shares:")
+        print("\nAverage primary-market shares:")
         for _, row in summary.iterrows():
             print(f"  {row['buyer_class']:25s} {row['mean_share']:6.1%}  ({row['mean_amount']:>10,.0f} avg)")
 
@@ -598,8 +598,8 @@ def cmd_similarity(args: argparse.Namespace) -> None:
         print("Not enough data for similarity analysis. Wrote empty artifacts + manifest.")
         return
 
-    paths = write_outputs(result, out, config=config)
-    chart_paths = write_charts(result, out, config=config)
+    _paths = write_outputs(result, out, config=config)
+    _chart_paths = write_charts(result, out, config=config)
 
     print(f"Distance matrix: {result.distance_matrix.shape[0]}x{result.distance_matrix.shape[1]} sectors")
     for target, nearest in result.closest.items():

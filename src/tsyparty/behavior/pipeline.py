@@ -536,7 +536,7 @@ def write_charts(result: SimilarityResult, out_dir: Path, config: SimilarityConf
 
     # Absorption beta charts
     if result.absorption_betas is not None and not result.absorption_betas.empty:
-        beta_path = out_dir / "rolling_absorption_betas.png"
+        _beta_path = out_dir / "rolling_absorption_betas.png"
         # Pivot betas for chart: date x sector for each beta column
         beta_cols = [c for c in result.absorption_betas.columns if c.startswith("beta_")]
         if beta_cols:

@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from tsyparty.baseline.flows import holdings_changes_from_levels, buyer_seller_margins
@@ -22,7 +21,6 @@ from tsyparty.infer.counterparty import (
     sign_baseline_matrix,
     sparse_threshold_rebalance,
     sparse_cv,
-    residual_bucket,
 )
 from tsyparty.validate.checks import validate_market_clearing
 
@@ -242,7 +240,7 @@ def run_quarter(
     sparse_cv_matrix = None
     sparse_cv_diag = None
     sparse_cv_report = None
-    sparse_cv_error: str | None = None
+    _sparse_cv_error: str | None = None
     if config.sparse_cv_enabled:
         try:
             sparse_cv_matrix, sparse_cv_diag, sparse_cv_report = sparse_cv(
@@ -251,7 +249,7 @@ def run_quarter(
             )
         except Exception as exc:
             logging.warning("sparse_cv failed for %s: %s", date, exc)
-            sparse_cv_error = f"{type(exc).__name__}: {exc}"
+            _sparse_cv_error = f"{type(exc).__name__}: {exc}"
 
     mc = validate_market_clearing(dense, sellers, buyers, tol=config.tol * 100)
     if config.require_market_clearing and not mc["passes"]:

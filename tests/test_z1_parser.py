@@ -1,6 +1,5 @@
 """Tests for Z.1 CSV parser."""
 
-import io
 import zipfile
 
 import pandas as pd
@@ -8,7 +7,6 @@ import pytest
 
 from tsyparty.ingest.z1_parser import (
     Z1_SERIES_SECTOR_MAP,
-    Z1_TOTAL_SERIES,
     classify_l210_series,
     Z1ParseResult,
     parse_z1_zip,
