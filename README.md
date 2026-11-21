@@ -1,220 +1,131 @@
 # tsyparty
 
-Public-data Treasury counterparty inference and sector-behavior mapping.
+`tsyparty` maps sector-level US Treasury holdings, quarterly holding changes, likely net counterparty flows, and sector behavior similarity from public Federal Reserve and US Treasury data. It also runs quarterly reduced-form regressions relating sector Treasury transactions to issuance maturity shifts.
 
-**[Live Dashboard](https://smkwray.github.io/tsyparty/)** — interactive site with holdings charts, sector behavior heatmaps, factor-adjusted comovement, and pipeline status.
+## Data
 
-To serve locally with your own pipeline data:
+`tsyparty download` fetches public files directly with no API keys required:
 
-```bash
-python3 -m http.server 8899   # then open http://localhost:8899/site/index.html
-```
+- Financial Accounts of the United States (Z.1) CSV archive (Table L.210 sector Treasury holdings) and From-Whom-to-Whom (FWTW) issuer-holder CSV (Federal Reserve).
+- Enhanced Financial Accounts (EFA) historical CSVs for money market funds, commercial banks, and international portfolio holdings (Federal Reserve).
+- Treasury International Capital (TIC) SLT foreign holdings tables and Investor Class Auction Allotments XLS files (US Treasury).
+- Debt to the Penny JSON via the Fiscal Data API (US Treasury).
+- System Open Market Account (SOMA) holdings JSON and Primary Dealer Statistics JSON (Federal Reserve Bank of New York).
+- H.8 commercial bank balance-sheet CSV (Federal Reserve).
 
-`tsyparty` builds a reproducible, public-data-only map of who holds US Treasury securities, how holdings flow between sectors, and which sectors behave most similarly. It answers four questions:
+## Install
 
-1. When banks add Treasury holdings, who are the most likely **net sellers**?
-2. When foreigners add Treasury holdings, who are the most likely **net sellers**?
-3. Who buys new Treasury supply in the **primary market**?
-4. Which sectors behave most like banks or foreigners?
-
-## Installation
+Requires Python 3.11 or later. From the repository root:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]'
-python -B -m pytest -q
-ruff check .
-tsyparty --help
 ```
 
-Requires Python 3.11+.
+## Usage
 
-## Quick start
+Run an offline toy example (writes matrices, charts, and diagnostics to `outputs/sample/`):
 
-Run the full pipeline:
+```bash
+tsyparty example --out outputs/sample
+```
+
+Run the full public-data pipeline (download, parse, harmonize, validate, quarterly holding changes, primary-market shares, RAS counterparty inference, official/private foreign split, and sector similarity):
 
 ```bash
 ./reproduce.sh
 ```
 
-Or step by step:
+Or run individual stages directly via the `tsyparty` CLI:
 
 ```bash
-# Download public data
-tsyparty download z1 fwtw investor_class debt_to_penny tic_slt efa
-
-# Parse raw data
+tsyparty registry --public-only
+tsyparty download z1 fwtw investor_class debt_to_penny tic_slt efa soma
 tsyparty parse-z1 data/raw_public/z1/z1_csv_files.zip --out data/interim
 tsyparty parse-fwtw data/raw_public/fwtw/fwtw_data.csv --out data/interim
 tsyparty parse-auction data/raw_public/auction/*.xls --out data/interim
 tsyparty parse-debt data/raw_public/fiscaldata/debt_to_penny_api.json --out data/interim
 tsyparty parse-tic data/raw_public/tic/slt1d_globl.csv --out data/interim
 tsyparty parse-efa --efa-dir data/raw_public/efa --out data/interim
-
-# Harmonize and reconcile
+tsyparty parse-soma data/raw_public/soma/soma_holdings_page.json --out data/interim
 tsyparty harmonize --interim data/interim --out data/derived
-
-# Validate against independent sources
 tsyparty validate --derived data/derived --interim data/interim --out outputs/validation
-
-# Descriptive analysis
 tsyparty baseline --derived data/derived --out outputs/baseline
 tsyparty primary-market --interim data/interim --out outputs/primary_market
-
-# Counterparty inference
 tsyparty infer --derived data/derived --out outputs/inference
-
-# Behavior similarity
+tsyparty enrich-foreign --derived data/derived --tic-dir data/raw_public/tic --out data/derived
 tsyparty similarity --derived data/derived --out outputs/similarity
+```
 
-# Response examples assume FU transactions in quarterly millions.
-# Holder-response mechanism artifacts
+Additional parsers exist for weekly H.8 (`parse-h8`) and primary dealer statistics (`parse-dealer`).
+
+To serve the static dashboard under `site/` locally:
+
+```bash
+python3 -m http.server 8899
+```
+
+Then open `http://localhost:8899/site/index.html`.
+
+### Holder-response and issuance-maturity regressions
+
+Both quarterly regression commands require `--transaction-basis` when given transaction columns:
+
+| `--transaction-basis` value | Meaning |
+| --- | --- |
+| `FA_SAAR_millions` | Seasonally adjusted annual rate in USD millions (divided by 4,000 to quarterly USD billions) |
+| `FU_quarterly_millions` | Unadjusted quarterly flow in USD millions (divided by 1,000 to quarterly USD billions) |
+| `prequarterized_billions` | Quarterly flow already in USD billions (unchanged) |
+
+```bash
 tsyparty holder-response \
-  --panel-file path/to/sector_transactions_FU_millions.csv \
+  --panel-file path/to/sector_transactions.csv \
   --transaction-basis FU_quarterly_millions \
-  --shock path/to/qrawatch_maturity_tilt.csv \
+  --shock path/to/maturity_tilt_shock.csv \
   --out outputs/holder_response
 
-# Issuance maturity response for descriptive mechanism analysis
 tsyparty issuance-maturity-response \
   --auction-file path/to/auctions.csv \
-  --sector-panel path/to/sector_transactions_FU_millions.csv \
+  --sector-panel path/to/sector_transactions.csv \
   --transaction-basis FU_quarterly_millions \
   --no-factor-controls \
   --out outputs/holder_response/issuance_maturity_response
 ```
 
-## Available commands
+Key options:
 
-| Command | Description |
-|---------|-------------|
-| `download` | Download public source data (Z.1, FWTW, TIC, EFA, Fiscal Data, SOMA, H.8, dealer) |
-| `parse-z1` | Parse Z.1 Financial Accounts CSV zip (table L.210) |
-| `parse-fwtw` | Parse FWTW issuer-holder CSV |
-| `parse-auction` | Parse Treasury investor-class auction XLS files |
-| `parse-debt` | Parse Fiscal Data API debt-to-penny JSON |
-| `parse-tic` | Parse TIC SLT historical global CSV |
-| `parse-efa` | Parse EFA data (MMF, banks, international) |
-| `parse-soma` | Parse SOMA Treasury holdings JSON into weekly series and quarterly deltas |
-| `parse-h8` | Parse H.8 bank balance sheet data into weekly series |
-| `parse-dealer` | Parse primary dealer statistics JSON into weekly series |
-| `harmonize` | Build harmonized quarterly panel and run reconciliation |
-| `validate` | Cross-validate panel against EFA/TIC sources |
-| `enrich-foreign` | Split foreign holdings into official vs private |
-| `baseline` | Compute holding changes, margins, and composition charts |
-| `primary-market` | Build primary-market allocation from auction data |
-| `infer` | Run RAS/sparse counterparty inference with validation checks |
-| `similarity` | Compute sector behavior distance, factor-adjusted comovement, absorption betas, and charts |
-| `holder-response` | Estimate quarterly sector Treasury transaction responses to imported bill-heavy issuance / maturity-tilt shocks |
-| `issuance-maturity-response` | Estimate sector absorption-share responses to whole-curve issuance weighted-average maturity changes |
-| `show-plan` | Print the build sequence |
-| `registry` | List configured public data sources |
-| `example` | Generate example outputs from toy data |
+- `holder-response`: `--controls` requires an explicit `--context-file` CSV; `--same-perimeter-total` computes the residual sector when the panel total matches the sector set, timing, and units of the individual sectors. Cumulative horizons use Newey-West HAC standard errors with `maxlags = max(horizon, 1)`.
+- `issuance-maturity-response`: pass `--control-universe` to enable screened factor controls or `--no-factor-controls` to skip them, and optional `--sample-start-quarter YYYYQn` to set the estimation start while keeping earlier quarters for trailing expectations and lagged controls.
+- `python -m tsyparty.behavior.response_inputs --help` builds quarterly unadjusted transaction inputs from a Z.1 zip archive and supplementary CSV using `configs/response_input_sources.yml`.
 
-## Public data sources
+## Output
 
-- **Z.1 Financial Accounts** — quarterly sector Treasury holdings (Fed)
-- **FWTW** — from-whom-to-whom issuer-holder data (Fed)
-- **Enhanced Financial Accounts** — MMF holdings, bank balance sheets, international holdings (Fed)
-- **TIC / SLT** — foreign Treasury holdings by country (Treasury)
-- **Investor Class Auction Allotments** — primary-market buyer composition (Treasury)
-- **Debt to the Penny** — total debt outstanding (Fiscal Data API)
-- **SOMA Holdings** — weekly Fed Treasury holdings by security type (NY Fed)
-- **H.8** — weekly bank Treasury/agency securities (Fed via FRED)
-- **Primary Dealer Statistics** — weekly dealer positions, financing, transactions (NY Fed)
+Raw downloads (`data/raw_public/`), parsed interim tables (`data/interim/`), derived panels (`data/derived/`), and analysis outputs (`outputs/`) are gitignored.
 
-## Method
+| Path | Description |
+| --- | --- |
+| `data/derived/harmonized_panel.csv` | Quarterly sector Treasury holdings panel (plus enriched foreign split and reconciliation CSVs) |
+| `outputs/validation/` | EFA and TIC cross-check summary tables |
+| `outputs/baseline/` | Quarterly holding changes, net buyer/seller margins, and PNG charts |
+| `outputs/primary_market/` | Primary-market auction allocation shares by investor class |
+| `outputs/inference/` | RAS dense and sparse net counterparty flow matrices (with residual bucket) |
+| `outputs/similarity/` | Sector feature tables, distance matrix, rolling betas, and charts |
+| `outputs/holder_response/` | Holder-response and issuance-maturity regression tables, JSON bundles, and charts |
 
-1. **Harmonized panel**: Merge Z.1 and FWTW into a quarterly sector-level holdings panel with source-priority overlap resolution. Cross-validate against EFA and TIC.
+## Limits
 
-2. **Reconciliation**: Compare sector totals against debt held by the public (Fiscal Data API), separating SOMA from private-sector holdings.
-
-3. **Baseline flows**: Compute quarterly holding changes and buyer/seller margins per sector.
-
-4. **Counterparty inference**: Use RAS (iterative proportional fitting) to estimate likely net seller-to-buyer flows, with a sparse sensitivity variant. The residual/unexplained bucket is always preserved.
-
-5. **Behavior similarity**: Cosine distance over sector features (mean delta, volatility, holding shares) plus rolling factor-adjusted comovement from quarterly holding changes.
-
-6. **Holder-response sidecar**: Imported QRA or maturity-tilt shock artifacts can be aligned to the quarterly sector panel to estimate reduced-form sector transaction responses. This is descriptive mechanism evidence for the buyer-mix channel, not a counterparty matrix and not a settled causal policy elasticity.
-
-## Claims discipline
-
-This tool labels outputs as **likely net counterparties**, not exact bilateral trades. It:
-
-- separates primary-market allocation from secondary-market reallocation,
-- preserves and displays a residual bucket in all inference outputs,
-- does not claim exact gross trades or exact immediate counterparties.
-
-## Repository layout
-
-```text
-src/tsyparty/
-  ingest/         # Downloaders and parsers for each data source
-  reconcile/      # Harmonization, accounting, enrichment
-  baseline/       # Holding changes, buyer/seller flows, primary market
-  infer/          # RAS counterparty matrix estimation
-  behavior/       # Sector similarity, holder-response, and issuance-maturity response sidecars
-  validate/       # Cross-validation against independent sources
-  viz/            # Chart generation
-  cli.py          # CLI entry points
-configs/          # Sector, source, inference, and instrument configs
-tests/            # Unit, contract, and CLI checks
-data/             # Raw, interim, and derived data (gitignored)
-outputs/          # Charts, CSVs, and inference results (gitignored)
-```
+- Counterparty matrices from `infer` are iterative proportional fitting (RAS) estimates of likely net seller-to-buyer flows from quarterly holding changes; public data do not observe exact gross or bilateral trades, and an unexplained residual bucket is always retained.
+- `holder-response` and `issuance-maturity-response` produce reduced-form descriptive associations rather than structural causal elasticities.
+- In `issuance-maturity-response`, outcomes are shares of positive net non-Fed Treasury acquisition rather than shares of gross Treasury issuance. Missing quarters, missing required sector keys, or unmapped keys raise errors rather than being filled with zero. Screened factor-control specifications are exploratory and omit standard errors, confidence intervals, and p-values.
 
 ## Tests
 
 ```bash
-pytest tests/ -v
+python -B -m pytest -q
+ruff check src tests scripts
 ```
-
-## Response-module inputs and limits
-
-Holder response requires an explicit `--shock` file and uses `--panel-file` when
-provided, otherwise `harmonized_panel.csv` under `--derived`. Requested `--controls`
-require an explicit `--context-file` CSV with a date column. No debt context is
-discovered automatically. A residual is available only with `--same-perimeter-total`,
-which attests that the panel's total has the same holder perimeter, clock, and
-transaction basis. Broad public debt changes cannot define that residual.
-
-Both response commands require an explicit `--transaction-basis` for transaction
-inputs: `FA_SAAR_millions` divides annualized millions by 4000,
-`FU_quarterly_millions` divides quarterly millions by 1000, and
-`prequarterized_billions` uses the supplied quarterly billions unchanged. Shipped
-configuration leaves the basis unset; it does not certify historical inputs.
-Holdings-change proxies use separate holdings units and are labeled as proxies in
-coefficient rows. Holder cumulative horizons use HAC with `maxlags=max(horizon,1)`.
-
-Maturity outcomes measure shares of **non-Fed positive net acquisition**, not shares
-of Treasury issuance. The configured included groups and excluded keys exhaust the
-input crosswalk. Unknown keys, overlapping mappings, and missing included keys in
-any quarter fail before shares are built; an absent row is not an observed zero.
-The bundle records included groups, exclusions, and quarter coverage.
-
-For factor robustness, supply `--control-universe`; `--no-factor-controls`
-explicitly omits that tier. Same-sample screening and factor extraction make the
-factor tier exploratory: it reports point estimates and omits standard errors,
-intervals, and p-values. Missing core controls are reported, and a partial set is
-not labeled as the full model. Quarterly gaps are rejected by the maturity-response
-estimator. These diagnostics require a separate evidence review before use as
-empirical findings.
-
-
-Frozen response inputs can be reconstructed with
-`python -m tsyparty.behavior.response_inputs --help` using
-`configs/response_input_sources.yml`. The builder preserves each FU source cell,
-requires complete requested quarters, checks primary table units and the exhaustive
-crosswalk, and records input hashes and the committed producer. Supplementary
-credit-union cells retain their own source and retrieval date. It never refreshes
-data or replaces missing observations with zero.
-
-The issuance-maturity command accepts `--sample-start-quarter YYYYQn` for an explicit
-estimation and factor-screening sample. Treatment expectations and lagged controls
-retain earlier input history. This option does not fill missing control quarters;
-calendar-contiguity checks still apply to every fitted sample.
 
 ## License
 
-MIT.
+MIT. See [LICENSE](LICENSE).
